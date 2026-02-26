@@ -122,7 +122,7 @@ export const Sidebar: React.FC = () => {
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Layers size={18} className="text-primary" />
-            <h2 className="font-semibold text-foreground text-sm tracking-tight">SyntaxForge</h2>
+            <h2 className="font-semibold text-foreground text-sm tracking-tight">CodeFlow AI</h2>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

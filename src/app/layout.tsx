@@ -2,7 +2,7 @@ import type {Metadata} from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'SyntaxForge | Advanced AI Code Studio',
+  title: 'CodeFlow AI | Advanced AI Code Studio',
   description: 'The ultimate AI-powered workspace for developers.',
 };
 
@@ -18,7 +18,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Code+Pro:wght@400;500;600&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-body antialiased bg-background text-foreground overflow-hidden">
+      <body className="font-body antialiased bg-background text-foreground overflow-y-auto min-h-screen">
         {children}
       </body>
     </html>

@@ -31,7 +31,7 @@ export const AuthScreen: React.FC = () => {
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-2xl shadow-primary/20 mb-4 transform hover:scale-105 transition-transform duration-300">
             <Layers className="text-white" size={32} />
           </div>
-          <h1 className="text-3xl font-bold tracking-tighter text-white">SyntaxForge</h1>
+          <h1 className="text-3xl font-bold tracking-tighter text-white">CodeFlow AI</h1>
           <p className="text-muted-foreground text-sm mt-1">The AI-native code development platform</p>
         </div>
 
