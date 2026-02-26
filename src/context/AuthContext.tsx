@@ -5,7 +5,7 @@ import { UserSession } from '@/lib/types';
 
 interface AuthContextType {
   user: UserSession | null;
-  login: (email: string) => void;
+  login: (email: string, password: string) => void;
   logout: () => void;
   isLoading: boolean;
 }
@@ -24,7 +24,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
-  const login = (email: string) => {
+  const login = (email: string, password: string) => {
+    // In a real app, you would validate the password here.
+    // For this prototype, we'll accept any password.
     const newUser = {
       id: Math.random().toString(36).substr(2, 9),
       email,

@@ -15,7 +15,7 @@ const Dashboard: React.FC = () => {
     <FileProvider>
       <div className="flex h-screen bg-background overflow-hidden">
         <Sidebar />
-        <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <main className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-background">
           <Editor />
         </main>
         <AIAssistant />
@@ -36,10 +36,10 @@ const AppShell: React.FC = () => {
   }
 
   return (
-    <>
+    <div className="min-h-screen overflow-y-auto">
       {user ? <Dashboard /> : <AuthScreen />}
       <Toaster />
-    </>
+    </div>
   );
 };
 
