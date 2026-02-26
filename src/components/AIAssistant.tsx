@@ -16,7 +16,8 @@ import {
   FolderOpen,
   Zap,
   Loader2,
-  Clock
+  Clock,
+  Wand2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -28,16 +29,16 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { COMPLEXITY_LEVELS, FileNode } from '@/lib/types';
 import { getCurrentApiKeyIndex, getApiKeyDisplayName, getTimeUntilNextRotation } from '@/lib/api-rotation';
 import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
 
 export const AIAssistant: React.FC = () => {
-  const { nodes, activeWorkspaceId, workspaces, activeFileId, createNode, updateNode } = useFiles();
+  const { nodes, activeWorkspaceId, workspaces, activeFileId, createNode, updateNode, deleteNode, renameNode, getNodePath } = useFiles();
   const [activeTab, setActiveTab] = useState('generate');
   
   // Generation state
   const [genPrompt, setGenPrompt] = useState('');
-  const [complexity, setComplexity] = useState([1]); // 0: simple, 1: medium, 2: complex
+  const [complexity, setComplexity] = useState([1]); 
   const [isGenerating, setIsGenerating] = useState(false);
-  const [lastGenerated, setLastGenerated] = useState<string | null>(null);
 
   // Debugging state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -61,22 +62,53 @@ export const AIAssistant: React.FC = () => {
     setIsGenerating(true);
     try {
       const level = COMPLEXITY_LEVELS[complexity[0]].id;
-      // Note: In a real app, we'd use context about the current folder or files here
+      
+      // Build workspace context for AI
+      const currentWorkspace = workspaces.find(w => w.id === activeWorkspaceId);
+      const workspaceContext = currentWorkspace?.rootFileIds.map(rid => ({
+        path: nodes[rid].name,
+        type: nodes[rid].type,
+        content: nodes[rid].content
+      })) || [];
+
       const result = await generateCode({
         userPrompt: genPrompt,
         complexityLevel: level,
-        programmingLanguage: nodes[activeFileId!]?.language || 'javascript'
+        programmingLanguage: nodes[activeFileId!]?.language || 'javascript',
+        workspaceContext
       });
       
-      setLastGenerated(result.generatedCode);
-      
-      // Optionally create a new file with the code
-      if (activeWorkspaceId) {
-        const fileId = createNode(null, `generated_${Date.now().toString().slice(-4)}.js`, 'file');
-        updateNode(fileId, { content: result.generatedCode });
+      // Apply operations returned by AI
+      if (result.operations && result.operations.length > 0) {
+        for (const op of result.operations) {
+          if (op.type === 'createFile') {
+            const id = createNode(null, op.path, 'file');
+            if (op.content) updateNode(id, { content: op.content });
+          } else if (op.type === 'createFolder') {
+            createNode(null, op.path, 'folder');
+          } else if (op.type === 'updateFile') {
+            const node = Object.values(nodes).find(n => n.name === op.path);
+            if (node) updateNode(node.id, { content: op.content });
+          } else if (op.type === 'deleteFile') {
+            const node = Object.values(nodes).find(n => n.name === op.path);
+            if (node) deleteNode(node.id);
+          } else if (op.type === 'renameFile') {
+            const node = Object.values(nodes).find(n => n.name === op.path);
+            if (node && op.newName) renameNode(node.id, op.newName);
+          }
+        }
+        toast({ title: "Workspace Updated", description: "AI has performed workspace operations." });
+      } else if (result.generatedCode) {
+        // Fallback for simple code generation
+        const id = createNode(null, `ai_generated_${Date.now().toString().slice(-4)}.js`, 'file');
+        updateNode(id, { content: result.generatedCode });
+        toast({ title: "File Created", description: "AI has generated a new file for you." });
       }
+
+      setGenPrompt('');
     } catch (e) {
       console.error(e);
+      toast({ title: "Error", description: "Failed to generate AI response.", variant: "destructive" });
     } finally {
       setIsGenerating(false);
     }
@@ -121,7 +153,6 @@ export const AIAssistant: React.FC = () => {
           </Badge>
         </div>
 
-        {/* API Key Rotation Status */}
         <div className="p-2 rounded-lg bg-background border border-border flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -139,7 +170,7 @@ export const AIAssistant: React.FC = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
         <div className="px-4 py-2 border-b bg-sidebar/30">
           <TabsList className="grid grid-cols-2 h-8">
-            <TabsTrigger value="generate" className="text-[10px] uppercase font-bold tracking-wider">Generate</TabsTrigger>
+            <TabsTrigger value="generate" className="text-[10px] uppercase font-bold tracking-wider">Automate</TabsTrigger>
             <TabsTrigger value="debug" className="text-[10px] uppercase font-bold tracking-wider">Debug</TabsTrigger>
           </TabsList>
         </div>
@@ -147,11 +178,11 @@ export const AIAssistant: React.FC = () => {
         <ScrollArea className="flex-1 p-4">
           <TabsContent value="generate" className="mt-0 space-y-6">
             <div className="space-y-3">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground">What should I build?</label>
+              <label className="text-[10px] font-bold uppercase text-muted-foreground">Prompt AI to Work</label>
               <Textarea 
                 value={genPrompt}
                 onChange={(e) => setGenPrompt(e.target.value)}
-                placeholder="e.g. Create a modular authentication system in TypeScript..."
+                placeholder="e.g. Create a folder named 'auth' and put a login.ts file inside it..."
                 className="min-h-[120px] text-xs resize-none bg-background/50"
               />
             </div>
@@ -180,19 +211,19 @@ export const AIAssistant: React.FC = () => {
               onClick={handleGenerate}
               disabled={isGenerating || !genPrompt.trim()}
             >
-              {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
-              Generate Modular Code
+              {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+              Execute AI Tasks
             </Button>
 
-            {lastGenerated && (
-              <Card className="p-3 bg-primary/5 border-primary/20 space-y-2">
-                <div className="flex items-center gap-2 text-primary text-xs font-bold uppercase">
-                  <FileCheck size={14} />
-                  <span>File Created</span>
-                </div>
-                <p className="text-[10px] text-muted-foreground">New modular snippet has been added to your current workspace.</p>
-              </Card>
-            )}
+            <div className="pt-4 border-t space-y-2">
+               <h3 className="text-[10px] font-bold uppercase text-muted-foreground">AI Capabilities</h3>
+               <ul className="text-[10px] space-y-1 text-muted-foreground">
+                 <li>• Create/Delete Files & Folders</li>
+                 <li>• Batch Refactor Workspace</li>
+                 <li>• Rename Nodes</li>
+                 <li>• Generate Complex Boilerplates</li>
+               </ul>
+            </div>
           </TabsContent>
 
           <TabsContent value="debug" className="mt-0 space-y-6">
@@ -217,7 +248,6 @@ export const AIAssistant: React.FC = () => {
                   );
                 })}
               </div>
-              <p className="text-[10px] text-muted-foreground italic">AI will analyze all contents within selected folders.</p>
             </div>
 
             <Button 
@@ -227,7 +257,7 @@ export const AIAssistant: React.FC = () => {
               disabled={isAnalyzing || selectedIds.length === 0}
             >
               {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <Bug size={16} />}
-              Debug Selected Items
+              Debug Context
             </Button>
 
             {analysisResult && (
@@ -249,18 +279,6 @@ export const AIAssistant: React.FC = () => {
                        <li key={idx} className="text-[10px] bg-destructive/10 text-destructive-foreground p-2 rounded flex gap-2">
                          <span className="font-bold shrink-0">{idx + 1}.</span>
                          <span>{issue}</span>
-                       </li>
-                     ))}
-                   </ul>
-                </div>
-
-                <div className="space-y-2">
-                   <h3 className="text-xs font-bold uppercase text-foreground">Suggestions</h3>
-                   <ul className="space-y-1">
-                     {analysisResult.suggestions.map((sug: string, idx: number) => (
-                       <li key={idx} className="text-[10px] bg-primary/10 text-primary p-2 rounded flex gap-2">
-                         <span className="font-bold shrink-0">{idx + 1}.</span>
-                         <span>{sug}</span>
                        </li>
                      ))}
                    </ul>

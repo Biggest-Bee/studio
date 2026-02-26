@@ -14,12 +14,20 @@ interface FileContextType {
   createWorkspace: (name: string) => void;
   deleteWorkspace: (id: string) => void;
   setActiveWorkspace: (id: string) => void;
+  renameWorkspace: (id: string, name: string) => void;
   
   createNode: (parentId: string | null, name: string, type: FileType, language?: string) => string;
   deleteNode: (id: string) => void;
   updateNode: (id: string, updates: Partial<FileNode>) => void;
+  renameNode: (id: string, newName: string) => void;
   moveNode: (id: string, newParentId: string | null) => void;
   setActiveFile: (id: string | null) => void;
+
+  // Persistence/IO
+  downloadWorkspace: (id: string) => void;
+  downloadNode: (id: string) => void;
+  uploadToFolder: (parentId: string | null, files: FileList) => Promise<void>;
+  importWorkspace: (json: string) => void;
 
   // Helpers
   getNodePath: (id: string) => string;
@@ -76,7 +84,6 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const ws = workspaces.find(w => w.id === id);
     if (!ws) return;
     
-    // Clean up nodes associated with this workspace recursively
     const newNodes = { ...nodes };
     const deleteRecursive = (nodeId: string) => {
       const node = newNodes[nodeId];
@@ -92,6 +99,10 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (activeWorkspaceId === id) {
       setActiveWorkspaceId(workspaces.length > 1 ? workspaces[0].id : null);
     }
+  };
+
+  const renameWorkspace = (id: string, name: string) => {
+    setWorkspaces(prev => prev.map(w => w.id === id ? { ...w, name } : w));
   };
 
   const createNode = (parentId: string | null, name: string, type: FileType, language = 'javascript') => {
@@ -139,7 +150,6 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     deleteRecursive(id);
 
-    // Remove from parent
     if (nodeToDelete.parentId && newNodes[nodeToDelete.parentId]) {
       newNodes[nodeToDelete.parentId] = {
         ...newNodes[nodeToDelete.parentId],
@@ -164,20 +174,22 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
   };
 
+  const renameNode = (id: string, newName: string) => {
+    updateNode(id, { name: newName });
+  };
+
   const moveNode = (id: string, newParentId: string | null) => {
     const node = nodes[id];
     if (!node || node.parentId === newParentId) return;
 
     const newNodes = { ...nodes };
     
-    // Remove from old parent
     if (node.parentId && newNodes[node.parentId]) {
       newNodes[node.parentId] = {
         ...newNodes[node.parentId],
         children: newNodes[node.parentId].children?.filter(cid => cid !== id)
       };
     } else if (activeWorkspaceId) {
-       // It was a root node
        setWorkspaces(workspaces.map(w => 
         w.id === activeWorkspaceId 
           ? { ...w, rootFileIds: w.rootFileIds.filter(rid => rid !== id) } 
@@ -185,7 +197,6 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ));
     }
 
-    // Add to new parent
     if (newParentId && newNodes[newParentId]) {
       newNodes[newParentId] = {
         ...newNodes[newParentId],
@@ -202,6 +213,104 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setNodes(newNodes);
+  };
+
+  const downloadFileContent = (name: string, content: string) => {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadNode = (id: string) => {
+    const node = nodes[id];
+    if (!node) return;
+    if (node.type === 'file') {
+      downloadFileContent(node.name, node.content || '');
+    } else {
+      // For folders, we download a recursive JSON representation
+      const exportRecursive = (nid: string): any => {
+        const n = nodes[nid];
+        return {
+          ...n,
+          children: n.children ? n.children.map(cid => exportRecursive(cid)) : undefined
+        };
+      };
+      const data = exportRecursive(id);
+      downloadFileContent(`${node.name}.json`, JSON.stringify(data, null, 2));
+    }
+  };
+
+  const downloadWorkspace = (id: string) => {
+    const ws = workspaces.find(w => w.id === id);
+    if (!ws) return;
+    const exportData = {
+      workspace: ws,
+      nodes: ws.rootFileIds.map(rid => {
+        const exportRecursive = (nid: string): any => {
+          const n = nodes[nid];
+          return {
+            ...n,
+            children: n.children ? n.children.map(cid => exportRecursive(cid)) : undefined
+          };
+        };
+        return exportRecursive(rid);
+      })
+    };
+    downloadFileContent(`${ws.name}_workspace.json`, JSON.stringify(exportData, null, 2));
+  };
+
+  const uploadToFolder = async (parentId: string | null, files: FileList) => {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        const extension = file.name.split('.').pop() || 'javascript';
+        const nodeId = createNode(parentId, file.name, 'file', extension);
+        updateNode(nodeId, { content });
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const importWorkspace = (json: string) => {
+    try {
+      const data = JSON.parse(json);
+      const wsId = uuidv4();
+      const importedWs: Workspace = {
+        ...data.workspace,
+        id: wsId,
+        createdAt: Date.now(),
+        rootFileIds: []
+      };
+
+      const newNodes = { ...nodes };
+      const importRecursive = (nodeData: any, parentId: string | null): string => {
+        const id = uuidv4();
+        const newNode: FileNode = {
+          ...nodeData,
+          id,
+          parentId,
+          children: nodeData.type === 'folder' ? [] : undefined
+        };
+        newNodes[id] = newNode;
+        if (nodeData.children) {
+          newNode.children = nodeData.children.map((c: any) => importRecursive(c, id));
+        }
+        return id;
+      };
+
+      importedWs.rootFileIds = data.nodes.map((n: any) => importRecursive(n, null));
+      setNodes(newNodes);
+      setWorkspaces([...workspaces, importedWs]);
+      setActiveWorkspaceId(wsId);
+    } catch (e) {
+      console.error('Failed to import workspace', e);
+    }
   };
 
   const getNodePath = (id: string): string => {
@@ -226,11 +335,17 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createWorkspace,
       deleteWorkspace,
       setActiveWorkspace: setActiveWorkspaceId,
+      renameWorkspace,
       createNode,
       deleteNode,
       updateNode,
+      renameNode,
       moveNode,
       setActiveFile: setActiveFileId,
+      downloadWorkspace,
+      downloadNode,
+      uploadToFolder,
+      importWorkspace,
       getNodePath,
       getFolderContents
     }}>

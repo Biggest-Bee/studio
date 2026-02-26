@@ -4,6 +4,7 @@ import {googleAI} from '@genkit-ai/google-genai';
 /**
  * Dynamically selects an API key based on the current UTC hour.
  * This ensures rotation across the 7 provided keys.
+ * Rotates exactly once every 1 hour UTC.
  */
 function getRotatedApiKey(): string {
   const keys = [

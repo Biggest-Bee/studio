@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useFiles } from '@/context/FileContext';
 import { useAuth } from '@/context/AuthContext';
 import { 
@@ -9,13 +9,16 @@ import {
   ChevronDown, 
   FileCode, 
   Folder, 
-  MoreVertical, 
   Trash, 
   LogOut, 
   Settings,
   FolderPlus,
   FilePlus,
-  Layers
+  Layers,
+  Download,
+  Upload,
+  Edit2,
+  MoreHorizontal
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,7 +30,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { FileNode, LANGUAGES } from '@/lib/types';
+import { FileNode, FileType } from '@/lib/types';
 
 export const Sidebar: React.FC = () => {
   const { 
@@ -36,17 +39,28 @@ export const Sidebar: React.FC = () => {
     setActiveWorkspace, 
     createWorkspace, 
     deleteWorkspace,
+    renameWorkspace,
     nodes,
     setActiveFile,
     activeFileId,
     createNode,
-    deleteNode
+    deleteNode,
+    renameNode,
+    downloadNode,
+    downloadWorkspace,
+    uploadToFolder,
+    importWorkspace
   } = useFiles();
   const { user, logout } = useAuth();
   
   const [isCreatingWs, setIsCreatingWs] = useState(false);
   const [newWsName, setNewWsName] = useState('');
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renamingValue, setRenamingValue] = useState('');
+  
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const importWsRef = useRef<HTMLInputElement>(null);
 
   const activeWs = workspaces.find(w => w.id === activeWorkspaceId);
 
@@ -62,12 +76,37 @@ export const Sidebar: React.FC = () => {
     }
   };
 
+  const startRenaming = (node: FileNode) => {
+    setRenamingId(node.id);
+    setRenamingValue(node.name);
+  };
+
+  const submitRename = () => {
+    if (renamingId && renamingValue.trim()) {
+      renameNode(renamingId, renamingValue.trim());
+    }
+    setRenamingId(null);
+  };
+
+  const handleImportWorkspace = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        importWorkspace(content);
+      };
+      reader.readAsText(file);
+    }
+  };
+
   const renderFileNode = (nodeId: string, depth = 0) => {
     const node = nodes[nodeId];
     if (!node) return null;
 
     const isExpanded = expandedFolders[nodeId];
     const isActive = activeFileId === nodeId;
+    const isRenaming = renamingId === nodeId;
 
     return (
       <div key={nodeId} className="select-none">
@@ -93,16 +132,50 @@ export const Sidebar: React.FC = () => {
               <FileCode size={14} className={isActive ? "text-primary" : "text-muted-foreground"} />
             )}
           </span>
-          <span className="text-sm truncate flex-1">{node.name}</span>
+          
+          {isRenaming ? (
+            <Input 
+              autoFocus 
+              className="h-6 text-xs py-0 px-1 bg-background" 
+              value={renamingValue}
+              onChange={(e) => setRenamingValue(e.target.value)}
+              onBlur={submitRename}
+              onKeyDown={(e) => e.key === 'Enter' && submitRename()}
+            />
+          ) : (
+            <span className="text-sm truncate flex-1">{node.name}</span>
+          )}
           
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-            {node.type === 'folder' && (
-              <>
-                <FilePlus size={14} className="hover:text-primary" onClick={(e) => { e.stopPropagation(); createNode(nodeId, 'new_file.js', 'file'); }} />
-                <FolderPlus size={14} className="hover:text-primary" onClick={(e) => { e.stopPropagation(); createNode(nodeId, 'new_folder', 'folder'); }} />
-              </>
-            )}
-            <Trash size={12} className="text-destructive hover:scale-110" onClick={(e) => { e.stopPropagation(); deleteNode(nodeId); }} />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="icon" className="h-5 w-5">
+                  <MoreHorizontal size={12} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                {node.type === 'folder' && (
+                  <>
+                    <DropdownMenuItem onClick={() => createNode(nodeId, 'new_file.js', 'file')}>
+                      <FilePlus size={14} className="mr-2" /> New File
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => createNode(nodeId, 'new_folder', 'folder')}>
+                      <FolderPlus size={14} className="mr-2" /> New Folder
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuItem onClick={() => startRenaming(node)}>
+                  <Edit2 size={14} className="mr-2" /> Rename
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => downloadNode(node.id)}>
+                  <Download size={14} className="mr-2" /> Download
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => deleteNode(node.id)} className="text-destructive">
+                  <Trash size={14} className="mr-2" /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         
@@ -134,6 +207,9 @@ export const Sidebar: React.FC = () => {
               <DropdownMenuItem onClick={() => setIsCreatingWs(true)}>
                 New Workspace
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => importWsRef.current?.click()}>
+                <Upload size={14} className="mr-2" /> Import Workspace
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               {workspaces.map(ws => (
                 <DropdownMenuItem 
@@ -147,6 +223,7 @@ export const Sidebar: React.FC = () => {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        <input type="file" ref={importWsRef} className="hidden" accept=".json" onChange={handleImportWorkspace} />
 
         {isCreatingWs ? (
           <div className="mt-2 space-y-2">
@@ -165,14 +242,13 @@ export const Sidebar: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="text-xs text-muted-foreground flex items-center justify-between">
-            <span>{activeWs ? activeWs.name : 'No workspace'}</span>
+          <div className="text-xs text-muted-foreground flex items-center justify-between group">
+            <span className="truncate flex-1">{activeWs ? activeWs.name : 'No workspace'}</span>
             {activeWs && (
-              <Trash 
-                size={12} 
-                className="cursor-pointer hover:text-destructive" 
-                onClick={() => deleteWorkspace(activeWs.id)}
-              />
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Download size={12} className="cursor-pointer hover:text-primary" onClick={() => downloadWorkspace(activeWs.id)} />
+                <Trash size={12} className="cursor-pointer hover:text-destructive" onClick={() => deleteWorkspace(activeWs.id)} />
+              </div>
             )}
           </div>
         )}
@@ -189,6 +265,10 @@ export const Sidebar: React.FC = () => {
              <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => createNode(null, 'new_folder', 'folder')}>
                <FolderPlus size={12} />
              </Button>
+             <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => uploadInputRef.current?.click()}>
+               <Upload size={12} />
+             </Button>
+             <input type="file" multiple ref={uploadInputRef} className="hidden" onChange={(e) => e.target.files && uploadToFolder(null, e.target.files)} />
           </div>
         </div>
         

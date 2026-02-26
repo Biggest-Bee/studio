@@ -7,14 +7,15 @@ import { Sidebar } from '@/components/Sidebar';
 import { Editor } from '@/components/Editor';
 import { AIAssistant } from '@/components/AIAssistant';
 import { AuthScreen } from '@/components/AuthScreen';
+import { Toaster } from '@/components/ui/toaster';
 import { Loader2 } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   return (
     <FileProvider>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex h-screen bg-background overflow-hidden">
         <Sidebar />
-        <main className="flex-1 flex flex-col min-w-0">
+        <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
           <Editor />
         </main>
         <AIAssistant />
@@ -34,7 +35,12 @@ const AppShell: React.FC = () => {
     );
   }
 
-  return user ? <Dashboard /> : <AuthScreen />;
+  return (
+    <>
+      {user ? <Dashboard /> : <AuthScreen />}
+      <Toaster />
+    </>
+  );
 };
 
 export default function Home() {
