@@ -18,7 +18,8 @@ import {
   Download,
   Upload,
   Edit2,
-  MoreHorizontal
+  MoreHorizontal,
+  GripVertical
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,13 +40,13 @@ export const Sidebar: React.FC = () => {
     setActiveWorkspace, 
     createWorkspace, 
     deleteWorkspace,
-    renameWorkspace,
     nodes,
     setActiveFile,
     activeFileId,
     createNode,
     deleteNode,
     renameNode,
+    moveNode,
     downloadNode,
     downloadWorkspace,
     uploadToFolder,
@@ -100,6 +101,33 @@ export const Sidebar: React.FC = () => {
     }
   };
 
+  // Drag and Drop Handlers
+  const handleDragStart = (e: React.DragEvent, nodeId: string) => {
+    e.dataTransfer.setData('nodeId', nodeId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string | null) => {
+    e.preventDefault();
+    const draggedId = e.dataTransfer.getData('nodeId');
+    if (draggedId && draggedId !== targetId) {
+      // Ensure we aren't dropping a folder into itself or its children
+      if (targetId) {
+        let parent = nodes[targetId].parentId;
+        while (parent) {
+          if (parent === draggedId) return;
+          parent = nodes[parent].parentId;
+        }
+      }
+      moveNode(draggedId, targetId);
+    }
+  };
+
   const renderFileNode = (nodeId: string, depth = 0) => {
     const node = nodes[nodeId];
     if (!node) return null;
@@ -111,10 +139,13 @@ export const Sidebar: React.FC = () => {
     return (
       <div key={nodeId} className="select-none">
         <div 
+          draggable={!isRenaming}
+          onDragStart={(e) => handleDragStart(e, nodeId)}
+          onDragOver={handleDragOver}
+          onDrop={(e) => handleDrop(e, node.type === 'folder' ? nodeId : node.parentId)}
           className={cn(
             "group flex items-center py-1 px-2 cursor-pointer hover:bg-secondary/50 rounded-md transition-colors",
             isActive && "bg-secondary text-primary",
-            depth > 0 && `ml-${depth * 2}`
           )}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
           onClick={() => {
@@ -125,6 +156,7 @@ export const Sidebar: React.FC = () => {
             }
           }}
         >
+          <GripVertical size={12} className="mr-1 opacity-0 group-hover:opacity-20 transition-opacity cursor-grab active:cursor-grabbing" />
           <span className="mr-1.5 opacity-60">
             {node.type === 'folder' ? (
               isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
@@ -215,7 +247,7 @@ export const Sidebar: React.FC = () => {
                 <DropdownMenuItem 
                   key={ws.id} 
                   onClick={() => setActiveWorkspace(ws.id)}
-                  className={cn(ws.id === activeWorkspaceId && "text-primary font-medium")}
+                  className={cn(ws.id === activeWorkspaceId && "text-primary font-medium bg-primary/5")}
                 >
                   {ws.name}
                 </DropdownMenuItem>
@@ -229,7 +261,6 @@ export const Sidebar: React.FC = () => {
           <div className="mt-2 space-y-2">
             <Input 
               autoFocus
-              size={1}
               value={newWsName} 
               onChange={(e) => setNewWsName(e.target.value)}
               placeholder="Workspace name..."
@@ -243,7 +274,7 @@ export const Sidebar: React.FC = () => {
           </div>
         ) : (
           <div className="text-xs text-muted-foreground flex items-center justify-between group">
-            <span className="truncate flex-1">{activeWs ? activeWs.name : 'No workspace'}</span>
+            <span className="truncate flex-1 font-medium">{activeWs ? activeWs.name : 'No workspace'}</span>
             {activeWs && (
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Download size={12} className="cursor-pointer hover:text-primary" onClick={() => downloadWorkspace(activeWs.id)} />
@@ -255,7 +286,11 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* File Explorer */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div 
+        className="flex-1 overflow-y-auto p-2"
+        onDragOver={handleDragOver}
+        onDrop={(e) => handleDrop(e, null)}
+      >
         <div className="flex items-center justify-between px-2 mb-2">
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Files</span>
           <div className="flex gap-1">

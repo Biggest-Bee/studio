@@ -7,9 +7,7 @@ import { aiCodeExplanationAndDebugging } from '@/ai/flows/ai-code-explanation-de
 import { 
   Sparkles, 
   Bug, 
-  RefreshCw, 
   ChevronRight, 
-  Send, 
   History,
   AlertCircle,
   FileCheck,
@@ -17,22 +15,22 @@ import {
   Zap,
   Loader2,
   Clock,
-  Wand2
+  Wand2,
+  Minimize2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { COMPLEXITY_LEVELS, FileNode } from '@/lib/types';
+import { COMPLEXITY_LEVELS } from '@/lib/types';
 import { getCurrentApiKeyIndex, getApiKeyDisplayName, getTimeUntilNextRotation } from '@/lib/api-rotation';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
 export const AIAssistant: React.FC = () => {
-  const { nodes, activeWorkspaceId, workspaces, activeFileId, createNode, updateNode, deleteNode, renameNode, getNodePath } = useFiles();
+  const { nodes, activeWorkspaceId, workspaces, activeFileId, createNode, updateNode, deleteNode, renameNode } = useFiles();
   const [activeTab, setActiveTab] = useState('generate');
   
   // Generation state
@@ -141,7 +139,7 @@ export const AIAssistant: React.FC = () => {
   const currentWorkspace = workspaces.find(w => w.id === activeWorkspaceId);
 
   return (
-    <div className="w-80 border-l bg-sidebar flex flex-col h-full shrink-0">
+    <div className="flex flex-col h-full w-full">
       <div className="p-4 border-b bg-sidebar/50">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -183,7 +181,7 @@ export const AIAssistant: React.FC = () => {
                 value={genPrompt}
                 onChange={(e) => setGenPrompt(e.target.value)}
                 placeholder="e.g. Create a folder named 'auth' and put a login.ts file inside it..."
-                className="min-h-[120px] text-xs resize-none bg-background/50"
+                className="min-h-[120px] text-xs resize-none bg-background/50 border-border"
               />
             </div>
 
@@ -215,7 +213,7 @@ export const AIAssistant: React.FC = () => {
               Execute AI Tasks
             </Button>
 
-            <div className="pt-4 border-t space-y-2">
+            <div className="pt-4 border-t border-border space-y-2">
                <h3 className="text-[10px] font-bold uppercase text-muted-foreground">AI Capabilities</h3>
                <ul className="text-[10px] space-y-1 text-muted-foreground">
                  <li>• Create/Delete Files & Folders</li>
@@ -276,7 +274,7 @@ export const AIAssistant: React.FC = () => {
                    <h3 className="text-xs font-bold uppercase text-foreground">Potential Issues</h3>
                    <ul className="space-y-1">
                      {analysisResult.potentialIssues.map((issue: string, idx: number) => (
-                       <li key={idx} className="text-[10px] bg-destructive/10 text-destructive-foreground p-2 rounded flex gap-2">
+                       <li key={idx} className="text-[10px] bg-destructive/10 text-destructive-foreground p-2 rounded flex gap-2 border border-destructive/20">
                          <span className="font-bold shrink-0">{idx + 1}.</span>
                          <span>{issue}</span>
                        </li>

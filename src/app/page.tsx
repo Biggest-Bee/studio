@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { FileProvider } from '@/context/FileContext';
 import { Sidebar } from '@/components/Sidebar';
@@ -8,17 +8,40 @@ import { Editor } from '@/components/Editor';
 import { AIAssistant } from '@/components/AIAssistant';
 import { AuthScreen } from '@/components/AuthScreen';
 import { Toaster } from '@/components/ui/toaster';
-import { Loader2 } from 'lucide-react';
+import { Loader2, PanelRightOpen, PanelRightClose } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 const Dashboard: React.FC = () => {
+  const [isAiOpen, setIsAiOpen] = useState(true);
+
   return (
     <FileProvider>
-      <div className="flex h-screen bg-background overflow-hidden">
+      <div className="flex h-screen bg-background overflow-hidden relative">
         <Sidebar />
-        <main className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-background">
+        <main className="flex-1 flex flex-col min-w-0 bg-background relative overflow-y-auto h-full">
           <Editor />
+          {/* AI Toggle Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "absolute top-1 right-2 z-50 h-8 w-8 text-muted-foreground hover:text-primary transition-all duration-300",
+              isAiOpen ? "mr-0" : "mr-0"
+            )}
+            onClick={() => setIsAiOpen(!isAiOpen)}
+          >
+            {isAiOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+          </Button>
         </main>
-        <AIAssistant />
+        <div 
+          className={cn(
+            "transition-all duration-300 ease-in-out border-l bg-sidebar overflow-hidden",
+            isAiOpen ? "w-80 opacity-100" : "w-0 opacity-0 pointer-events-none"
+          )}
+        >
+          <AIAssistant />
+        </div>
       </div>
     </FileProvider>
   );
@@ -36,7 +59,7 @@ const AppShell: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen overflow-y-auto">
+    <div className="min-h-screen overflow-y-auto bg-background">
       {user ? <Dashboard /> : <AuthScreen />}
       <Toaster />
     </div>
