@@ -64,15 +64,15 @@ export const AIAssistant: React.FC = () => {
       // Build workspace context for AI
       const currentWorkspace = workspaces.find(w => w.id === activeWorkspaceId);
       const workspaceContext = currentWorkspace?.rootFileIds.map(rid => ({
-        path: nodes[rid].name,
-        type: nodes[rid].type,
-        content: nodes[rid].content
+        path: nodes[rid]?.name || 'unknown',
+        type: nodes[rid]?.type || 'file',
+        content: nodes[rid]?.content || ''
       })) || [];
 
       const result = await generateCode({
         userPrompt: genPrompt,
         complexityLevel: level,
-        programmingLanguage: nodes[activeFileId!]?.language || 'javascript',
+        programmingLanguage: activeFileId && nodes[activeFileId] ? nodes[activeFileId].language || 'javascript' : 'javascript',
         workspaceContext
       });
       
@@ -117,14 +117,15 @@ export const AIAssistant: React.FC = () => {
     setIsAnalyzing(true);
     try {
       const filesToAnalyze = selectedIds.map(id => ({
-        fileName: nodes[id].name,
-        fileContent: nodes[id].content || `(Folder: ${nodes[id].name})`
+        fileName: nodes[id]?.name || 'unknown',
+        fileContent: nodes[id]?.content || `(Folder: ${nodes[id]?.name})`
       }));
       
       const result = await aiCodeExplanationAndDebugging({ filesToAnalyze });
       setAnalysisResult(result);
     } catch (e) {
       console.error(e);
+      toast({ title: "Analysis Failed", description: "Could not analyze the selected context.", variant: "destructive" });
     } finally {
       setIsAnalyzing(false);
     }

@@ -19,7 +19,7 @@ const Dashboard: React.FC = () => {
     <FileProvider>
       <div className="flex h-screen bg-background overflow-hidden relative">
         <Sidebar />
-        <main className="flex-1 flex flex-col min-w-0 bg-background relative overflow-y-auto h-full">
+        <main className="flex-1 flex flex-col min-w-0 bg-background relative overflow-hidden h-full">
           <Editor />
           {/* AI Toggle Button */}
           <Button
@@ -36,7 +36,7 @@ const Dashboard: React.FC = () => {
         </main>
         <div 
           className={cn(
-            "transition-all duration-300 ease-in-out border-l bg-sidebar overflow-hidden",
+            "transition-all duration-300 ease-in-out border-l bg-sidebar overflow-hidden shrink-0",
             isAiOpen ? "w-80 opacity-100" : "w-0 opacity-0 pointer-events-none"
           )}
         >
@@ -59,7 +59,7 @@ const AppShell: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen overflow-y-auto bg-background">
+    <div className="min-h-screen overflow-y-auto bg-background selection:bg-primary/30">
       {user ? <Dashboard /> : <AuthScreen />}
       <Toaster />
     </div>

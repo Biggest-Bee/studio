@@ -19,7 +19,8 @@ import {
   Upload,
   Edit2,
   MoreHorizontal,
-  GripVertical
+  GripVertical,
+  LayoutGrid
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,7 +32,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { FileNode, FileType } from '@/lib/types';
+import { FileNode, FileType, Workspace } from '@/lib/types';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export const Sidebar: React.FC = () => {
   const { 
@@ -101,7 +103,6 @@ export const Sidebar: React.FC = () => {
     }
   };
 
-  // Drag and Drop Handlers
   const handleDragStart = (e: React.DragEvent, nodeId: string) => {
     e.dataTransfer.setData('nodeId', nodeId);
     e.dataTransfer.effectAllowed = 'move';
@@ -116,7 +117,6 @@ export const Sidebar: React.FC = () => {
     e.preventDefault();
     const draggedId = e.dataTransfer.getData('nodeId');
     if (draggedId && draggedId !== targetId) {
-      // Ensure we aren't dropping a folder into itself or its children
       if (targetId) {
         let parent = nodes[targetId].parentId;
         while (parent) {
@@ -222,49 +222,56 @@ export const Sidebar: React.FC = () => {
 
   return (
     <div className="w-64 border-r bg-sidebar flex flex-col h-full shrink-0">
-      {/* Workspace Header */}
+      {/* Workspace Switcher Header */}
       <div className="p-4 border-b">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Layers size={18} className="text-primary" />
-            <h2 className="font-semibold text-foreground text-sm tracking-tight">CodeFlow AI</h2>
+            <LayoutGrid size={16} className="text-primary" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Workspaces</span>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <Plus size={16} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setIsCreatingWs(true)}>
-                New Workspace
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => importWsRef.current?.click()}>
-                <Upload size={14} className="mr-2" /> Import Workspace
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {workspaces.map(ws => (
-                <DropdownMenuItem 
-                  key={ws.id} 
-                  onClick={() => setActiveWorkspace(ws.id)}
-                  className={cn(ws.id === activeWorkspaceId && "text-primary font-medium bg-primary/5")}
-                >
-                  {ws.name}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-6 w-6 text-muted-foreground hover:text-primary"
+            onClick={() => setIsCreatingWs(true)}
+          >
+            <Plus size={14} />
+          </Button>
         </div>
-        <input type="file" ref={importWsRef} className="hidden" accept=".json" onChange={handleImportWorkspace} />
 
-        {isCreatingWs ? (
-          <div className="mt-2 space-y-2">
+        <ScrollArea className="max-h-32 mb-2">
+          <div className="space-y-1">
+            {workspaces.map(ws => (
+              <div 
+                key={ws.id}
+                onClick={() => setActiveWorkspace(ws.id)}
+                className={cn(
+                  "flex items-center justify-between group px-2 py-1.5 rounded-md cursor-pointer transition-all text-xs",
+                  activeWorkspaceId === ws.id 
+                    ? "bg-primary/10 text-primary border border-primary/20 font-medium" 
+                    : "hover:bg-secondary/50 text-muted-foreground"
+                )}
+              >
+                <span className="truncate">{ws.name}</span>
+                {activeWorkspaceId === ws.id && (
+                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                     <Download size={12} className="hover:text-primary" onClick={(e) => { e.stopPropagation(); downloadWorkspace(ws.id); }} />
+                     <Trash size={12} className="hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteWorkspace(ws.id); }} />
+                   </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+
+        {isCreatingWs && (
+          <div className="mt-2 space-y-2 animate-in slide-in-from-top-2 duration-200">
             <Input 
               autoFocus
               value={newWsName} 
               onChange={(e) => setNewWsName(e.target.value)}
               placeholder="Workspace name..."
-              className="h-8 text-xs"
+              className="h-8 text-xs bg-background"
               onKeyDown={(e) => e.key === 'Enter' && handleCreateWorkspace()}
             />
             <div className="flex gap-2">
@@ -272,17 +279,19 @@ export const Sidebar: React.FC = () => {
               <Button size="sm" variant="ghost" className="h-7 px-2 text-xs flex-1" onClick={() => setIsCreatingWs(false)}>Cancel</Button>
             </div>
           </div>
-        ) : (
-          <div className="text-xs text-muted-foreground flex items-center justify-between group">
-            <span className="truncate flex-1 font-medium">{activeWs ? activeWs.name : 'No workspace'}</span>
-            {activeWs && (
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Download size={12} className="cursor-pointer hover:text-primary" onClick={() => downloadWorkspace(activeWs.id)} />
-                <Trash size={12} className="cursor-pointer hover:text-destructive" onClick={() => deleteWorkspace(activeWs.id)} />
-              </div>
-            )}
-          </div>
         )}
+
+        <div className="mt-2 pt-2 border-t border-border/50">
+           <Button 
+             variant="outline" 
+             className="w-full h-7 text-[10px] uppercase font-bold tracking-tighter gap-2 border-dashed"
+             onClick={() => importWsRef.current?.click()}
+           >
+             <Upload size={12} />
+             Import Workspace
+           </Button>
+           <input type="file" ref={importWsRef} className="hidden" accept=".json" onChange={handleImportWorkspace} />
+        </div>
       </div>
 
       {/* File Explorer */}
