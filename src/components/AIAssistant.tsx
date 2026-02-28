@@ -174,117 +174,119 @@ export const AIAssistant: React.FC = () => {
           </TabsList>
         </div>
 
-        <ScrollArea className="flex-1 p-4">
-          <TabsContent value="generate" className="mt-0 space-y-6">
-            <div className="space-y-3">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground">Prompt AI to Work</label>
-              <Textarea 
-                value={genPrompt}
-                onChange={(e) => setGenPrompt(e.target.value)}
-                placeholder="e.g. Create a folder named 'auth' and put a login.ts file inside it..."
-                className="min-h-[120px] text-xs resize-none bg-background/50 border-border"
-              />
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-bold uppercase text-muted-foreground">Complexity</label>
-                <Badge variant="secondary" className="text-[10px] uppercase">{COMPLEXITY_LEVELS[complexity[0]].label}</Badge>
+        <ScrollArea className="flex-1">
+          <div className="p-4">
+            <TabsContent value="generate" className="mt-0 space-y-6">
+              <div className="space-y-3">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Prompt AI to Work</label>
+                <Textarea 
+                  value={genPrompt}
+                  onChange={(e) => setGenPrompt(e.target.value)}
+                  placeholder="e.g. Create a folder named 'auth' and put a login.ts file inside it..."
+                  className="min-h-[120px] text-xs resize-none bg-background/50 border-border"
+                />
               </div>
-              <Slider 
-                value={complexity} 
-                onValueChange={setComplexity} 
-                max={2} 
-                step={1} 
-                className="px-1"
-              />
-              <div className="flex justify-between text-[10px] text-muted-foreground px-1">
-                <span>Simple</span>
-                <span>Medium</span>
-                <span>Complex</span>
-              </div>
-            </div>
 
-            <Button 
-              className="w-full gap-2 shadow-lg shadow-primary/20" 
-              onClick={handleGenerate}
-              disabled={isGenerating || !genPrompt.trim()}
-            >
-              {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-              Execute AI Tasks
-            </Button>
-
-            <div className="pt-4 border-t border-border space-y-2">
-               <h3 className="text-[10px] font-bold uppercase text-muted-foreground">AI Capabilities</h3>
-               <ul className="text-[10px] space-y-1 text-muted-foreground">
-                 <li>• Create/Delete Files & Folders</li>
-                 <li>• Batch Refactor Workspace</li>
-                 <li>• Rename Nodes</li>
-                 <li>• Generate Complex Boilerplates</li>
-               </ul>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="debug" className="mt-0 space-y-6">
-            <div className="space-y-3">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground">Select Context</label>
-              <div className="space-y-1 max-h-48 overflow-y-auto pr-2">
-                {currentWorkspace?.rootFileIds.map(rid => {
-                  const node = nodes[rid];
-                  if (!node) return null;
-                  return (
-                    <div 
-                      key={node.id}
-                      onClick={() => toggleSelection(node.id)}
-                      className={cn(
-                        "flex items-center gap-2 p-1.5 rounded cursor-pointer text-xs transition-colors",
-                        selectedIds.includes(node.id) ? "bg-primary/10 text-primary border border-primary/20" : "hover:bg-muted"
-                      )}
-                    >
-                      {node.type === 'folder' ? <FolderOpen size={14} /> : <FileCheck size={14} />}
-                      <span className="truncate flex-1">{node.name}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <Button 
-              variant="outline"
-              className="w-full gap-2 border-primary text-primary hover:bg-primary/5" 
-              onClick={handleAnalyze}
-              disabled={isAnalyzing || selectedIds.length === 0}
-            >
-              {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <Bug size={16} />}
-              Debug Context
-            </Button>
-
-            {analysisResult && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <div className="space-y-2">
-                   <h3 className="text-xs font-bold uppercase flex items-center gap-2 text-foreground">
-                     <AlertCircle size={14} className="text-amber-500" />
-                     Explanation
-                   </h3>
-                   <div className="text-[11px] text-muted-foreground leading-relaxed bg-background/50 p-2 rounded border border-border">
-                     {analysisResult.explanation}
-                   </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground">Complexity</label>
+                  <Badge variant="secondary" className="text-[10px] uppercase">{COMPLEXITY_LEVELS[complexity[0]].label}</Badge>
                 </div>
-
-                <div className="space-y-2">
-                   <h3 className="text-xs font-bold uppercase text-foreground">Potential Issues</h3>
-                   <ul className="space-y-1">
-                     {analysisResult.potentialIssues.map((issue: string, idx: number) => (
-                       <li key={idx} className="text-[10px] bg-destructive/10 text-destructive-foreground p-2 rounded flex gap-2 border border-destructive/20">
-                         <span className="font-bold shrink-0">{idx + 1}.</span>
-                         <span>{issue}</span>
-                       </li>
-                     ))}
-                   </ul>
+                <Slider 
+                  value={complexity} 
+                  onValueChange={setComplexity} 
+                  max={2} 
+                  step={1} 
+                  className="px-1"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground px-1">
+                  <span>Simple</span>
+                  <span>Medium</span>
+                  <span>Complex</span>
                 </div>
               </div>
-            )}
-          </TabsContent>
+
+              <Button 
+                className="w-full gap-2 shadow-lg shadow-primary/20" 
+                onClick={handleGenerate}
+                disabled={isGenerating || !genPrompt.trim()}
+              >
+                {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                Execute AI Tasks
+              </Button>
+
+              <div className="pt-4 border-t border-border space-y-2">
+                 <h3 className="text-[10px] font-bold uppercase text-muted-foreground">AI Capabilities</h3>
+                 <ul className="text-[10px] space-y-1 text-muted-foreground">
+                   <li>• Create/Delete Files & Folders</li>
+                   <li>• Batch Refactor Workspace</li>
+                   <li>• Rename Nodes</li>
+                   <li>• Generate Complex Boilerplates</li>
+                 </ul>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="debug" className="mt-0 space-y-6">
+              <div className="space-y-3">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Select Context</label>
+                <div className="space-y-1 max-h-48 overflow-y-auto pr-2">
+                  {currentWorkspace?.rootFileIds.map(rid => {
+                    const node = nodes[rid];
+                    if (!node) return null;
+                    return (
+                      <div 
+                        key={node.id}
+                        onClick={() => toggleSelection(node.id)}
+                        className={cn(
+                          "flex items-center gap-2 p-1.5 rounded cursor-pointer text-xs transition-colors",
+                          selectedIds.includes(node.id) ? "bg-primary/10 text-primary border border-primary/20" : "hover:bg-muted"
+                        )}
+                      >
+                        {node.type === 'folder' ? <FolderOpen size={14} /> : <FileCheck size={14} />}
+                        <span className="truncate flex-1">{node.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <Button 
+                variant="outline"
+                className="w-full gap-2 border-primary text-primary hover:bg-primary/5" 
+                onClick={handleAnalyze}
+                disabled={isAnalyzing || selectedIds.length === 0}
+              >
+                {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <Bug size={16} />}
+                Debug Context
+              </Button>
+
+              {analysisResult && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  <div className="space-y-2">
+                     <h3 className="text-xs font-bold uppercase flex items-center gap-2 text-foreground">
+                       <AlertCircle size={14} className="text-amber-500" />
+                       Explanation
+                     </h3>
+                     <div className="text-[11px] text-muted-foreground leading-relaxed bg-background/50 p-2 rounded border border-border">
+                       {analysisResult.explanation}
+                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                     <h3 className="text-xs font-bold uppercase text-foreground">Potential Issues</h3>
+                     <ul className="space-y-1">
+                       {analysisResult.potentialIssues.map((issue: string, idx: number) => (
+                         <li key={idx} className="text-[10px] bg-destructive/10 text-destructive-foreground p-2 rounded flex gap-2 border border-destructive/20">
+                           <span className="font-bold shrink-0">{idx + 1}.</span>
+                           <span>{issue}</span>
+                         </li>
+                       ))}
+                     </ul>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+          </div>
         </ScrollArea>
       </Tabs>
     </div>
