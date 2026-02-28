@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils';
 import { FileNode, FileType, Workspace } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { toast } from '@/hooks/use-toast';
 
 export const Sidebar: React.FC = () => {
   const { 
@@ -130,6 +131,40 @@ export const Sidebar: React.FC = () => {
     }
   };
 
+  const validateWorkspace = () => {
+    if (!activeWorkspaceId) {
+      const { dismiss } = toast({
+        title: "Action Required",
+        description: "You have to select a workspace to start.",
+        variant: "destructive"
+      });
+      // Ensure the message disappears after 10 seconds
+      setTimeout(() => {
+        dismiss();
+      }, 10000);
+      return false;
+    }
+    return true;
+  };
+
+  const handleCreateFile = () => {
+    if (validateWorkspace()) {
+      createNode(null, 'new_file.js', 'file');
+    }
+  };
+
+  const handleCreateFolder = () => {
+    if (validateWorkspace()) {
+      createNode(null, 'new_folder', 'folder');
+    }
+  };
+
+  const handleUploadClick = () => {
+    if (validateWorkspace()) {
+      uploadInputRef.current?.click();
+    }
+  };
+
   const renderFileNode = (nodeId: string, depth = 0) => {
     const node = nodes[nodeId];
     if (!node) return null;
@@ -190,10 +225,10 @@ export const Sidebar: React.FC = () => {
               <DropdownMenuContent align="end" className="w-40">
                 {node.type === 'folder' && (
                   <>
-                    <DropdownMenuItem onClick={() => createNode(nodeId, 'new_file.js', 'file')}>
+                    <DropdownMenuItem onClick={() => createNode(node.id, 'new_file.js', 'file')}>
                       <FilePlus size={14} className="mr-2" /> New File
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => createNode(nodeId, 'new_folder', 'folder')}>
+                    <DropdownMenuItem onClick={() => createNode(node.id, 'new_folder', 'folder')}>
                       <FolderPlus size={14} className="mr-2" /> New Folder
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -232,7 +267,7 @@ export const Sidebar: React.FC = () => {
 
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-4">
-          {/* Workspaces Section - NOW ABOVE Explorer */}
+          {/* Workspaces Section */}
           <section>
             <div className="flex items-center justify-between px-2 mb-2">
               <div className="flex items-center gap-2">
@@ -302,18 +337,18 @@ export const Sidebar: React.FC = () => {
 
           <Separator className="bg-border/50" />
 
-          {/* File Explorer Section - NOW BELOW Switcher */}
+          {/* File Explorer Section */}
           <section>
             <div className="flex items-center justify-between px-2 mb-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Files</span>
               <div className="flex gap-1">
-                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => createNode(null, 'new_file.js', 'file')}>
+                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={handleCreateFile}>
                    <FilePlus size={12} />
                  </Button>
-                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => createNode(null, 'new_folder', 'folder')}>
+                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={handleCreateFolder}>
                    <FolderPlus size={12} />
                  </Button>
-                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => uploadInputRef.current?.click()}>
+                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={handleUploadClick}>
                    <Upload size={12} />
                  </Button>
                  <input type="file" multiple ref={uploadInputRef} className="hidden" onChange={(e) => e.target.files && uploadToFolder(null, e.target.files)} />
