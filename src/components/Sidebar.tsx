@@ -232,37 +232,7 @@ export const Sidebar: React.FC = () => {
 
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-4">
-          {/* File Explorer Section */}
-          <section>
-            <div className="flex items-center justify-between px-2 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Files</span>
-              <div className="flex gap-1">
-                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => createNode(null, 'new_file.js', 'file')}>
-                   <FilePlus size={12} />
-                 </Button>
-                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => createNode(null, 'new_folder', 'folder')}>
-                   <FolderPlus size={12} />
-                 </Button>
-                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => uploadInputRef.current?.click()}>
-                   <Upload size={12} />
-                 </Button>
-                 <input type="file" multiple ref={uploadInputRef} className="hidden" onChange={(e) => e.target.files && uploadToFolder(null, e.target.files)} />
-              </div>
-            </div>
-            
-            <div className="space-y-0.5">
-              {activeWs && activeWs.rootFileIds.map(rid => renderFileNode(rid))}
-              {!activeWs && (
-                <div className="text-center py-4 text-muted-foreground text-xs italic px-4">
-                  Select a workspace
-                </div>
-              )}
-            </div>
-          </section>
-
-          <Separator className="bg-border/50" />
-
-          {/* Workspaces Section */}
+          {/* Workspaces Section - NOW ABOVE Explorer */}
           <section>
             <div className="flex items-center justify-between px-2 mb-2">
               <div className="flex items-center gap-2">
@@ -327,6 +297,36 @@ export const Sidebar: React.FC = () => {
                  Import JSON
                </Button>
                <input type="file" ref={importWsRef} className="hidden" accept=".json" onChange={handleImportWorkspace} />
+            </div>
+          </section>
+
+          <Separator className="bg-border/50" />
+
+          {/* File Explorer Section - NOW BELOW Switcher */}
+          <section>
+            <div className="flex items-center justify-between px-2 mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Files</span>
+              <div className="flex gap-1">
+                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => createNode(null, 'new_file.js', 'file')}>
+                   <FilePlus size={12} />
+                 </Button>
+                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => createNode(null, 'new_folder', 'folder')}>
+                   <FolderPlus size={12} />
+                 </Button>
+                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => uploadInputRef.current?.click()}>
+                   <Upload size={12} />
+                 </Button>
+                 <input type="file" multiple ref={uploadInputRef} className="hidden" onChange={(e) => e.target.files && uploadToFolder(null, e.target.files)} />
+              </div>
+            </div>
+            
+            <div className="space-y-0.5">
+              {activeWs && activeWs.rootFileIds.map(rid => renderFileNode(rid))}
+              {!activeWs && (
+                <div className="text-center py-4 text-muted-foreground text-xs italic px-4">
+                  Select a workspace
+                </div>
+              )}
             </div>
           </section>
         </div>
