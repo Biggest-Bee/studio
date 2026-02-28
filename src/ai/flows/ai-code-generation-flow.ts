@@ -13,10 +13,11 @@ import { z } from 'genkit';
 
 // Define the operations the AI can suggest
 const FileOperationSchema = z.object({
-  type: z.enum(['createFile', 'updateFile', 'deleteFile', 'renameFile', 'createFolder']),
+  type: z.enum(['createFile', 'updateFile', 'deleteFile', 'renameFile', 'createFolder', 'moveNode']),
   path: z.string().describe('The path of the file or folder (e.g., "src/index.ts")'),
   content: z.string().optional().describe('Content for creation or update'),
   newName: z.string().optional().describe('New name for renaming'),
+  destinationPath: z.string().optional().describe('Target folder path for move operations (use "/" for root)'),
 });
 
 // 1. Define Input Schema
@@ -27,8 +28,9 @@ const AiCodeGenerationInputSchema = z.object({
   workspaceContext: z.array(z.object({
     path: z.string(),
     type: z.enum(['file', 'folder']),
-    content: z.string().optional()
-  })).optional().describe('Context of the existing files in the workspace.'),
+    content: z.string().optional(),
+    children: z.array(z.string()).optional().describe('Paths of children if this is a folder')
+  })).optional().describe('Full hierarchical context of the existing files in the workspace.'),
 });
 export type AiCodeGenerationInput = z.infer<typeof AiCodeGenerationInputSchema>;
 
@@ -48,10 +50,16 @@ const codeGenerationPrompt = ai.definePrompt({
   prompt: `You are an expert software developer and architect.
 Your task is to fulfill the user's request. You can generate modular code and perform workspace operations.
 
-If the user asks to build something complex, break it down into multiple file operations.
-If the user asks to rename or delete something, use the appropriate operations.
+Capabilities:
+1. Create/Update/Delete files and folders.
+2. Rename files and folders.
+3. Move files and folders into other folders (including sub-sub folders) or out to the root.
 
-Workspace Context:
+If the user asks to build something complex, break it down into multiple file operations.
+If the user asks to move something, use the 'moveNode' operation and specify the 'destinationPath'.
+Paths should be relative to the workspace root (e.g., 'src/components/Button.tsx').
+
+Workspace Context (Hierarchical):
 {{#each workspaceContext}}
 - {{{type}}}: {{{path}}}
 {{#if content}}
@@ -60,13 +68,16 @@ Workspace Context:
   {{{content}}}
   \`\`\`
 {{/if}}
+{{#if children}}
+  Contains: {{#each children}}{{{this}}}, {{/each}}
+{{/if}}
 {{/each}}
 
 User Prompt: {{{userPrompt}}}
 Programming Language: {{{programmingLanguage}}}
 Complexity Level: {{{complexityLevel}}}
 
-IMPORTANT: Return a list of 'operations' if you need to create, update, rename, or delete files/folders.
+IMPORTANT: Return a list of 'operations' if you need to create, update, rename, move, or delete files/folders.
 `,
 });
 

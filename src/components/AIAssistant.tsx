@@ -7,7 +7,6 @@ import { aiCodeExplanationAndDebugging } from '@/ai/flows/ai-code-explanation-de
 import { 
   Sparkles, 
   Bug, 
-  ChevronRight, 
   History,
   AlertCircle,
   FileCheck,
@@ -16,7 +15,9 @@ import {
   Loader2,
   Clock,
   Wand2,
-  Minimize2
+  FilePlus,
+  FolderPlus,
+  Move
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -30,7 +31,19 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
 export const AIAssistant: React.FC = () => {
-  const { nodes, activeWorkspaceId, workspaces, activeFileId, createNode, updateNode, deleteNode, renameNode } = useFiles();
+  const { 
+    nodes, 
+    activeWorkspaceId, 
+    workspaces, 
+    activeFileId, 
+    createNode, 
+    updateNode, 
+    deleteNode, 
+    renameNode, 
+    moveNode,
+    getNodePath 
+  } = useFiles();
+  
   const [activeTab, setActiveTab] = useState('generate');
   
   // Generation state
@@ -55,19 +68,44 @@ export const AIAssistant: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
+  const findNodeByPath = (path: string) => {
+    if (path === '/' || path === '') return null;
+    const normalizedPath = path.replace(/^\//, '');
+    return Object.values(nodes).find(n => getNodePath(n.id) === normalizedPath);
+  };
+
   const handleGenerate = async () => {
     if (!genPrompt.trim()) return;
+    if (!activeWorkspaceId) {
+      toast({ title: "No Workspace", description: "Select a workspace first.", variant: "destructive" });
+      return;
+    }
+    
     setIsGenerating(true);
     try {
       const level = COMPLEXITY_LEVELS[complexity[0]].id;
       
-      // Build workspace context for AI
+      // Build full hierarchical workspace context for AI
       const currentWorkspace = workspaces.find(w => w.id === activeWorkspaceId);
-      const workspaceContext = currentWorkspace?.rootFileIds.map(rid => ({
-        path: nodes[rid]?.name || 'unknown',
-        type: nodes[rid]?.type || 'file',
-        content: nodes[rid]?.content || ''
-      })) || [];
+      const buildContext = (nodeIds: string[]): any[] => {
+        let ctx: any[] = [];
+        nodeIds.forEach(id => {
+          const node = nodes[id];
+          if (!node) return;
+          ctx.push({
+            path: getNodePath(id),
+            type: node.type,
+            content: node.content || '',
+            children: node.children ? node.children.map(cid => getNodePath(cid)) : []
+          });
+          if (node.children) {
+            ctx = [...ctx, ...buildContext(node.children)];
+          }
+        });
+        return ctx;
+      };
+
+      const workspaceContext = buildContext(currentWorkspace?.rootFileIds || []);
 
       const result = await generateCode({
         userPrompt: genPrompt,
@@ -79,28 +117,38 @@ export const AIAssistant: React.FC = () => {
       // Apply operations returned by AI
       if (result.operations && result.operations.length > 0) {
         for (const op of result.operations) {
+          const pathParts = op.path.split('/');
+          const name = pathParts.pop() || '';
+          const parentPath = pathParts.join('/');
+          const parentNode = findNodeByPath(parentPath);
+          const parentId = parentNode?.id || null;
+
           if (op.type === 'createFile') {
-            const id = createNode(null, op.path, 'file');
+            const id = createNode(parentId, name, 'file');
             if (op.content) updateNode(id, { content: op.content });
           } else if (op.type === 'createFolder') {
-            createNode(null, op.path, 'folder');
+            createNode(parentId, name, 'folder');
           } else if (op.type === 'updateFile') {
-            const node = Object.values(nodes).find(n => n.name === op.path);
+            const node = findNodeByPath(op.path);
             if (node) updateNode(node.id, { content: op.content });
           } else if (op.type === 'deleteFile') {
-            const node = Object.values(nodes).find(n => n.name === op.path);
+            const node = findNodeByPath(op.path);
             if (node) deleteNode(node.id);
           } else if (op.type === 'renameFile') {
-            const node = Object.values(nodes).find(n => n.name === op.path);
+            const node = findNodeByPath(op.path);
             if (node && op.newName) renameNode(node.id, op.newName);
+          } else if (op.type === 'moveNode') {
+            const node = findNodeByPath(op.path);
+            const destNode = findNodeByPath(op.destinationPath || '');
+            if (node) moveNode(node.id, destNode?.id || null);
           }
         }
-        toast({ title: "Workspace Updated", description: "AI has performed workspace operations." });
+        toast({ title: "AI Operations Complete", description: result.explanation });
       } else if (result.generatedCode) {
         // Fallback for simple code generation
         const id = createNode(null, `ai_generated_${Date.now().toString().slice(-4)}.js`, 'file');
         updateNode(id, { content: result.generatedCode });
-        toast({ title: "File Created", description: "AI has generated a new file for you." });
+        toast({ title: "Code Generated", description: result.explanation });
       }
 
       setGenPrompt('');
@@ -178,11 +226,11 @@ export const AIAssistant: React.FC = () => {
           <div className="p-4">
             <TabsContent value="generate" className="mt-0 space-y-6">
               <div className="space-y-3">
-                <label className="text-[10px] font-bold uppercase text-muted-foreground">Prompt AI to Work</label>
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">AI Workflow Engine</label>
                 <Textarea 
                   value={genPrompt}
                   onChange={(e) => setGenPrompt(e.target.value)}
-                  placeholder="e.g. Create a folder named 'auth' and put a login.ts file inside it..."
+                  placeholder="e.g. Move the 'auth' folder into 'src' and create a 'utils' folder next to it..."
                   className="min-h-[120px] text-xs resize-none bg-background/50 border-border"
                 />
               </div>
@@ -212,17 +260,25 @@ export const AIAssistant: React.FC = () => {
                 disabled={isGenerating || !genPrompt.trim()}
               >
                 {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                Execute AI Tasks
+                Execute Workspace Ops
               </Button>
 
               <div className="pt-4 border-t border-border space-y-2">
-                 <h3 className="text-[10px] font-bold uppercase text-muted-foreground">AI Capabilities</h3>
-                 <ul className="text-[10px] space-y-1 text-muted-foreground">
-                   <li>• Create/Delete Files & Folders</li>
-                   <li>• Batch Refactor Workspace</li>
-                   <li>• Rename Nodes</li>
-                   <li>• Generate Complex Boilerplates</li>
-                 </ul>
+                 <h3 className="text-[10px] font-bold uppercase text-muted-foreground">Advanced Capabilities</h3>
+                 <div className="grid grid-cols-2 gap-2 mt-2">
+                   <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground bg-secondary/30 p-1.5 rounded">
+                     <FolderPlus size={10} className="text-primary" /> Nested Creation
+                   </div>
+                   <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground bg-secondary/30 p-1.5 rounded">
+                     <Move size={10} className="text-primary" /> Bulk Move
+                   </div>
+                   <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground bg-secondary/30 p-1.5 rounded">
+                     <Zap size={10} className="text-primary" /> Workspace Tree Sync
+                   </div>
+                   <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground bg-secondary/30 p-1.5 rounded">
+                     <History size={10} className="text-primary" /> Batch Refactor
+                   </div>
+                 </div>
               </div>
             </TabsContent>
 
