@@ -21,6 +21,7 @@ export interface UserSession {
   id: string;
   email: string;
   username: string;
+  createdAt?: string;
 }
 
 export const LANGUAGES = [

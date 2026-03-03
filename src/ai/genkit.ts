@@ -2,31 +2,21 @@ import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 
 /**
- * Dynamically selects an API key based on the current UTC hour.
- * This ensures rotation across the 7 provided keys.
- * Rotates exactly once every 1 hour UTC.
+ * Gets the current API key from environment variable.
+ * UI-provided keys are passed through request context.
  */
-function getRotatedApiKey(): string {
-  const keys = [
-    process.env.GEMINI_API_KEY,
-    process.env.GEMINI_API_KEY_1,
-    process.env.GEMINI_API_KEY_2,
-    process.env.GEMINI_API_KEY_3,
-    process.env.GEMINI_API_KEY_4,
-    process.env.GEMINI_API_KEY_5,
-    process.env.GEMINI_API_KEY_6,
-  ];
+function getApiKey(): string {
+  const envKey = process.env.GEMINI_API_KEY;
+  if (envKey) return envKey;
   
-  const now = new Date();
-  const index = now.getUTCHours() % 7;
-  
-  return keys[index] || keys[0] || '';
+  // Return a placeholder - actual key comes from UI or environment
+  return 'placeholder_configure_via_settings';
 }
 
 export const ai = genkit({
   plugins: [
     googleAI({
-      apiKey: getRotatedApiKey(),
+      apiKey: getApiKey(),
     }),
   ],
   model: 'googleai/gemini-2.5-flash',

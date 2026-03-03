@@ -19,6 +19,7 @@ const FileContentSchema = z.object({
 // Define the input schema for the AI code explanation and debugging flow
 const AiCodeExplanationAndDebuggingInputSchema = z.object({
   filesToAnalyze: z.array(FileContentSchema).describe('An array of files to analyze, including their names and content. This can represent files from a single folder or selected individual files.'),
+  apiKey: z.string().optional().describe('The Gemini API key for authentication.'),
 });
 export type AiCodeExplanationAndDebuggingInput = z.infer<typeof AiCodeExplanationAndDebuggingInputSchema>;
 
@@ -35,15 +36,30 @@ export type AiCodeExplanationAndDebuggingOutput = z.infer<typeof AiCodeExplanati
 export async function aiCodeExplanationAndDebugging(
   input: AiCodeExplanationAndDebuggingInput
 ): Promise<AiCodeExplanationAndDebuggingOutput> {
-  return aiCodeExplanationAndDebuggingFlow(input);
-}
-
-// Define the prompt for the AI model
-const aiCodeExplanationAndDebuggingPrompt = ai.definePrompt({
-  name: 'aiCodeExplanationAndDebuggingPrompt',
-  input: { schema: AiCodeExplanationAndDebuggingInputSchema },
-  output: { schema: AiCodeExplanationAndDebuggingOutputSchema },
-  prompt: `You are an expert software engineer and debugger. Your task is to provide a comprehensive analysis of the given code, which may span multiple files. Follow these steps:
+  // Validate that an API key is provided
+  if (!input.apiKey || input.apiKey === 'placeholder_configure_via_settings') {
+    throw new Error('No valid API key provided. Please configure your Gemini API key in settings.');
+  }
+  
+  // Create a new Genkit instance with the provided API key
+  const { genkit } = await import('genkit');
+  const { googleAI } = await import('@genkit-ai/google-genai');
+  
+  const aiWithKey = genkit({
+    plugins: [
+      googleAI({
+        apiKey: input.apiKey,
+      }),
+    ],
+    model: 'googleai/gemini-2.5-flash',
+  });
+  
+  // Define the prompt with the key-specific instance
+  const analysisPrompt = aiWithKey.definePrompt({
+    name: 'aiCodeExplanationAndDebuggingPrompt',
+    input: { schema: AiCodeExplanationAndDebuggingInputSchema },
+    output: { schema: AiCodeExplanationAndDebuggingOutputSchema },
+    prompt: `You are an expert software engineer and debugger. Your task is to provide a comprehensive analysis of the given code, which may span multiple files. Follow these steps:
 
 1.  **Explanation**: Detail the functionality, purpose, and overall architecture of the code. Explain how different files (if any) interact.
 2.  **Potential Issues**: Identify any bugs, inefficiencies, security vulnerabilities, poor coding practices, design flaws, or areas that could lead to unexpected behavior.
@@ -64,21 +80,12 @@ Here are the files for your analysis:
 
 Please provide your analysis in the JSON format specified by the output schema.
 `,
-});
-
-// Define the Genkit flow
-const aiCodeExplanationAndDebuggingFlow = ai.defineFlow(
-  {
-    name: 'aiCodeExplanationAndDebuggingFlow',
-    inputSchema: AiCodeExplanationAndDebuggingInputSchema,
-    outputSchema: AiCodeExplanationAndDebuggingOutputSchema,
-  },
-  async (input) => {
-    // Call the prompt with the input and get the structured output
-    const { output } = await aiCodeExplanationAndDebuggingPrompt(input);
-    if (!output) {
-      throw new Error('AI failed to generate a valid output for code explanation and debugging.');
-    }
-    return output;
+  });
+  
+  // Call the prompt
+  const { output } = await analysisPrompt(input);
+  if (!output) {
+    throw new Error('AI failed to generate a valid output for code explanation and debugging.');
   }
-);
+  return output;
+}

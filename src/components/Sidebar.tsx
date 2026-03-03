@@ -2,7 +2,6 @@
 
 import React, { useState, useRef } from 'react';
 import { useFiles } from '@/context/FileContext';
-import { useAuth } from '@/context/AuthContext';
 import { 
   Plus, 
   ChevronRight, 
@@ -10,7 +9,6 @@ import {
   FileCode, 
   Folder, 
   Trash, 
-  LogOut, 
   Settings,
   FolderPlus,
   FilePlus,
@@ -57,7 +55,7 @@ export const Sidebar: React.FC = () => {
     uploadToFolder,
     importWorkspace
   } = useFiles();
-  const { user, logout } = useAuth();
+  // Authentication removed - user is always null
   
   const [isCreatingWs, setIsCreatingWs] = useState(false);
   const [newWsName, setNewWsName] = useState('');
@@ -367,31 +365,7 @@ export const Sidebar: React.FC = () => {
         </div>
       </ScrollArea>
 
-      {/* User Footer */}
-      <div className="mt-auto border-t p-3 flex items-center justify-between bg-sidebar/50">
-        <div className="flex items-center gap-2 overflow-hidden">
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0">
-            {user?.username?.charAt(0).toUpperCase() || 'U'}
-          </div>
-          <div className="flex flex-col overflow-hidden">
-            <span className="text-xs font-medium truncate text-foreground">{user?.username}</span>
-            <span className="text-[10px] text-muted-foreground truncate">{user?.email}</span>
-          </div>
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-              <Settings size={16} />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={logout} className="text-destructive">
-              <LogOut size={14} className="mr-2" />
-              Sign Out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+
     </div>
   );
 };

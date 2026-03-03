@@ -117,12 +117,13 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
       children: type === 'folder' ? [] : undefined
     };
 
-    const newNodes = { ...nodes, [id]: newNode };
+    const newNodes: Record<string, FileNode> = { ...nodes, [id]: newNode };
     
     if (parentId && newNodes[parentId]) {
+      const parentNode = newNodes[parentId];
       newNodes[parentId] = {
-        ...newNodes[parentId],
-        children: [...(newNodes[parentId].children || []), id]
+        ...parentNode,
+        children: [...(parentNode.children || []), id]
       };
     } else if (activeWorkspaceId) {
       setWorkspaces(workspaces.map(w => 
@@ -168,10 +169,13 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateNode = (id: string, updates: Partial<FileNode>) => {
-    setNodes(prev => ({
-      ...prev,
-      [id]: { ...prev[id], ...updates }
-    }));
+    setNodes(prev => {
+      if (!prev[id]) return prev;
+      return {
+        ...prev,
+        [id]: { ...prev[id], ...updates }
+      };
+    });
   };
 
   const renameNode = (id: string, newName: string) => {
@@ -182,28 +186,32 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const node = nodes[id];
     if (!node || node.parentId === newParentId) return;
 
-    const newNodes = { ...nodes };
+    const newNodes: Record<string, FileNode> = { ...nodes };
     
+    // Remove from old parent
     if (node.parentId && newNodes[node.parentId]) {
+      const oldParent = newNodes[node.parentId];
       newNodes[node.parentId] = {
-        ...newNodes[node.parentId],
-        children: newNodes[node.parentId].children?.filter(cid => cid !== id)
+        ...oldParent,
+        children: oldParent.children?.filter(cid => cid !== id)
       };
-    } else if (activeWorkspaceId) {
-       setWorkspaces(workspaces.map(w => 
+    } else if (activeWorkspaceId && !node.parentId) {
+      setWorkspaces(workspaces.map(w => 
         w.id === activeWorkspaceId 
           ? { ...w, rootFileIds: w.rootFileIds.filter(rid => rid !== id) } 
           : w
       ));
     }
 
+    // Add to new parent
     if (newParentId && newNodes[newParentId]) {
+      const newParent = newNodes[newParentId];
       newNodes[newParentId] = {
-        ...newNodes[newParentId],
-        children: [...(newNodes[newParentId].children || []), id]
+        ...newParent,
+        children: [...(newParent.children || []), id]
       };
       newNodes[id] = { ...newNodes[id], parentId: newParentId };
-    } else if (activeWorkspaceId) {
+    } else if (activeWorkspaceId && !newParentId) {
       setWorkspaces(workspaces.map(w => 
         w.id === activeWorkspaceId 
           ? { ...w, rootFileIds: [...w.rootFileIds, id] } 

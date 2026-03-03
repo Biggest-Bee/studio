@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useFiles } from '@/context/FileContext';
+import { useApiKey } from '@/context/ApiKeyContext';
 import { generateCode } from '@/ai/flows/ai-code-generation-flow';
 import { aiCodeExplanationAndDebugging } from '@/ai/flows/ai-code-explanation-debugging-flow';
 import { 
@@ -13,11 +14,11 @@ import {
   FolderOpen,
   Zap,
   Loader2,
-  Clock,
   Wand2,
   FilePlus,
   FolderPlus,
-  Move
+  Move,
+  Key
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -26,7 +27,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { COMPLEXITY_LEVELS } from '@/lib/types';
-import { getCurrentApiKeyIndex, getApiKeyDisplayName, getTimeUntilNextRotation } from '@/lib/api-rotation';
+import { getApiKeyDisplayName } from '@/lib/api-rotation';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
@@ -44,6 +45,8 @@ export const AIAssistant: React.FC = () => {
     getNodePath 
   } = useFiles();
   
+  const { apiKey, isLoaded } = useApiKey();
+  
   const [activeTab, setActiveTab] = useState('generate');
   
   // Generation state
@@ -56,22 +59,45 @@ export const AIAssistant: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
 
-  // API Rotation state
-  const [currentKeyIndex, setCurrentKeyIndex] = useState(getCurrentApiKeyIndex());
-  const [timeToRotate, setTimeToRotate] = useState(getTimeUntilNextRotation());
+  // If API key is not set, show a prompt
+  if (!isLoaded) {
+    return (
+      <div className="flex flex-col h-full w-full items-center justify-center p-6 text-center">
+        <Loader2 className="animate-spin text-primary mb-4" size={32} />
+        <p className="text-sm text-muted-foreground">Loading settings...</p>
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentKeyIndex(getCurrentApiKeyIndex());
-      setTimeToRotate(getTimeUntilNextRotation());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+  if (!apiKey) {
+    return (
+      <div className="flex flex-col h-full w-full">
+        <div className="p-4 border-b bg-sidebar/50">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles size={18} className="text-primary" />
+            <h2 className="font-semibold text-sm">AI Assistant</h2>
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+          <Key size={40} className="text-muted-foreground/30 mb-4" />
+          <h3 className="font-semibold text-sm mb-2">API Key Required</h3>
+          <p className="text-xs text-muted-foreground mb-4">
+            Click the settings icon to add your Gemini API key. Get one free from{' '}
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+              Google AI Studio
+            </a>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const findNodeByPath = (path: string) => {
-    if (path === '/' || path === '') return null;
-    const normalizedPath = path.replace(/^\//, '');
-    return Object.values(nodes).find(n => getNodePath(n.id) === normalizedPath);
+    if (!path || path === '/' || path === '') return null;
+    const normalizedPath = path.replace(/^\/+/, '').replace(/\/+$/, '');
+    if (!normalizedPath) return null;
+    const result = Object.values(nodes).find(n => n && getNodePath(n.id) === normalizedPath);
+    return result || null;
   };
 
   const handleGenerate = async () => {
@@ -111,16 +137,19 @@ export const AIAssistant: React.FC = () => {
         userPrompt: genPrompt,
         complexityLevel: level,
         programmingLanguage: activeFileId && nodes[activeFileId] ? nodes[activeFileId].language || 'javascript' : 'javascript',
-        workspaceContext
+        workspaceContext,
+        apiKey: apiKey || undefined
       });
       
       // Apply operations returned by AI
       if (result.operations && result.operations.length > 0) {
         for (const op of result.operations) {
-          const pathParts = op.path.split('/');
+          if (!op.path || typeof op.path !== 'string') continue;
+          const pathParts = op.path.split('/').filter(Boolean);
+          if (pathParts.length === 0) continue;
           const name = pathParts.pop() || '';
-          const parentPath = pathParts.join('/');
-          const parentNode = findNodeByPath(parentPath);
+          const parentPath = pathParts.length > 0 ? pathParts.join('/') : '';
+          const parentNode = parentPath ? findNodeByPath(parentPath) : null;
           const parentId = parentNode?.id || null;
 
           if (op.type === 'createFile') {
@@ -153,8 +182,18 @@ export const AIAssistant: React.FC = () => {
 
       setGenPrompt('');
     } catch (e) {
-      console.error(e);
-      toast({ title: "Error", description: "Failed to generate AI response.", variant: "destructive" });
+      console.error('AI generation error:', e);
+      let errorMessage = 'Failed to generate AI response';
+      
+      if (e instanceof Error) {
+        if (e.message.includes('API') || e.message.includes('FAILED_PRECONDITION') || e.message.includes('authentication')) {
+          errorMessage = 'API key is invalid or missing. Please check your settings.';
+        } else {
+          errorMessage = e.message;
+        }
+      }
+      
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
       setIsGenerating(false);
     }
@@ -164,16 +203,40 @@ export const AIAssistant: React.FC = () => {
     if (selectedIds.length === 0) return;
     setIsAnalyzing(true);
     try {
-      const filesToAnalyze = selectedIds.map(id => ({
-        fileName: nodes[id]?.name || 'unknown',
-        fileContent: nodes[id]?.content || `(Folder: ${nodes[id]?.name})`
-      }));
+      const filesToAnalyze = selectedIds
+        .map(id => {
+          const node = nodes[id];
+          if (!node) return null;
+          return {
+            fileName: node.name || 'unknown',
+            fileContent: node.content || `(Folder: ${node.name})`
+          };
+        })
+        .filter(Boolean) as Array<{ fileName: string; fileContent: string }>;
       
-      const result = await aiCodeExplanationAndDebugging({ filesToAnalyze });
+      if (filesToAnalyze.length === 0) {
+        toast({ title: "No Files", description: "No valid files to analyze.", variant: "destructive" });
+        return;
+      }
+      
+      const result = await aiCodeExplanationAndDebugging({ 
+        filesToAnalyze,
+        apiKey: apiKey || undefined
+      });
       setAnalysisResult(result);
     } catch (e) {
-      console.error(e);
-      toast({ title: "Analysis Failed", description: "Could not analyze the selected context.", variant: "destructive" });
+      console.error('Analysis error:', e);
+      let errorMessage = 'Could not analyze the selected context';
+      
+      if (e instanceof Error) {
+        if (e.message.includes('API') || e.message.includes('FAILED_PRECONDITION') || e.message.includes('authentication')) {
+          errorMessage = 'API key is invalid or missing. Please check your settings.';
+        } else {
+          errorMessage = e.message;
+        }
+      }
+      
+      toast({ title: "Analysis Failed", description: errorMessage, variant: "destructive" });
     } finally {
       setIsAnalyzing(false);
     }
@@ -200,17 +263,11 @@ export const AIAssistant: React.FC = () => {
           </Badge>
         </div>
 
-        <div className="p-2 rounded-lg bg-background border border-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
-              {getApiKeyDisplayName(currentKeyIndex)}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Clock size={10} />
-            <span className="text-[10px] font-mono">{timeToRotate}</span>
-          </div>
+        <div className="p-2 rounded-lg bg-background border border-border flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
+            Gemini API
+          </span>
         </div>
       </div>
 

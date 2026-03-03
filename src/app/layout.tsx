@@ -4,6 +4,10 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'CodeFlow AI | Advanced AI Code Studio',
   description: 'The ultimate AI-powered workspace for developers.',
+  icons: {
+    icon: '/codeflow-icon.png',
+    apple: '/codeflow-icon.png',
+  },
 };
 
 export default function RootLayout({
