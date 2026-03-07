@@ -33,66 +33,67 @@ const Dashboard: React.FC = () => {
         <div className="flex h-screen bg-background overflow-hidden relative">
           {!isMobile && <Sidebar />}
           <main className="flex-1 flex flex-col min-w-0 bg-background relative overflow-hidden h-full">
-            <div className="flex-1 overflow-hidden">
-              <Editor />
-            </div>
-            {/* Settings and AI Toggle Buttons */}
-            <div className="absolute top-1 right-2 z-50 flex items-center gap-2">
-              {isMobile && (
-                <Sheet open={isFilesOpen} onOpenChange={setIsFilesOpen}>
+            <div className="border-b bg-background/95 px-3 py-2 sm:px-4">
+              <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+                {isMobile && (
+                  <Sheet open={isFilesOpen} onOpenChange={setIsFilesOpen}>
+                    <SheetTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-primary transition-all duration-300"
+                        title="Open Files"
+                      >
+                        <Menu size={18} />
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="left" className="w-[90vw] max-w-xs p-0">
+                      <SheetHeader className="sr-only">
+                        <SheetTitle>Files</SheetTitle>
+                        <SheetDescription>Browse workspaces and files</SheetDescription>
+                      </SheetHeader>
+                      <Sidebar className="w-full border-r-0" onFileOpen={() => setIsFilesOpen(false)} />
+                    </SheetContent>
+                  </Sheet>
+                )}
+                <Sheet open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
                   <SheetTrigger asChild>
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-primary transition-all duration-300"
-                      title="Open Files"
+                      title="Settings"
                     >
-                      <Menu size={18} />
+                      <Settings size={18} />
                     </Button>
                   </SheetTrigger>
-                  <SheetContent side="left" className="w-[90vw] max-w-xs p-0">
-                    <SheetHeader className="sr-only">
-                      <SheetTitle>Files</SheetTitle>
-                      <SheetDescription>Browse workspaces and files</SheetDescription>
+                  <SheetContent className="w-full sm:w-96">
+                    <SheetHeader>
+                      <SheetTitle>Settings</SheetTitle>
+                      <SheetDescription>
+                        Configure your API keys and preferences
+                      </SheetDescription>
                     </SheetHeader>
-                    <Sidebar className="w-full border-r-0" onFileOpen={() => setIsFilesOpen(false)} />
+                    <div className="mt-6">
+                      <ApiKeySettings />
+                    </div>
                   </SheetContent>
                 </Sheet>
-              )}
-              <Sheet open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-                <SheetTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-primary transition-all duration-300"
-                    title="Settings"
-                  >
-                    <Settings size={18} />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent className="w-full sm:w-96">
-                  <SheetHeader>
-                    <SheetTitle>Settings</SheetTitle>
-                    <SheetDescription>
-                      Configure your API keys and preferences
-                    </SheetDescription>
-                  </SheetHeader>
-                  <div className="mt-6">
-                    <ApiKeySettings />
-                  </div>
-                </SheetContent>
-              </Sheet>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "h-8 w-8 text-muted-foreground hover:text-primary transition-all duration-300"
-                )}
-                onClick={() => setIsAiOpen(!isAiOpen)}
-                title={isAiOpen ? "Close AI Assistant" : "Open AI Assistant"}
-              >
-                {isAiOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "h-8 w-8 text-muted-foreground hover:text-primary transition-all duration-300"
+                  )}
+                  onClick={() => setIsAiOpen(!isAiOpen)}
+                  title={isAiOpen ? "Close AI Assistant" : "Open AI Assistant"}
+                >
+                  {isAiOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <Editor />
             </div>
           </main>
           <div 
