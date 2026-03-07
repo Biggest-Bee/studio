@@ -138,8 +138,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, onFileOpen }) => {
     }
   };
 
-  const handleRootDrop = (e: React.DragEvent) => {
-    if (e.target !== e.currentTarget) return;
+  const handleWorkspaceDrop = (e: React.DragEvent, workspaceId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const draggedId = e.dataTransfer.getData('nodeId');
+    if (draggedId) {
+      moveNode(draggedId, null, workspaceId);
+    }
+  };
+
+  const handleExplorerDrop = (e: React.DragEvent) => {
+    const target = e.target as HTMLElement | null;
+    const droppedOnNode = target?.closest('[data-drop-node="true"]');
+    const droppedOnWorkspace = target?.closest('[data-drop-workspace="true"]');
+    if (droppedOnNode || droppedOnWorkspace) return;
     handleDrop(e, null);
   };
 
@@ -192,6 +204,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, onFileOpen }) => {
           onDragStart={(e) => handleDragStart(e, nodeId)}
           onDragOver={handleDragOver}
           onDrop={(e) => handleDrop(e, node.type === 'folder' ? nodeId : node.parentId)}
+          data-drop-node="true"
           className={cn(
             "group flex items-center py-1 px-2 cursor-pointer hover:bg-secondary/50 rounded-md transition-colors",
             isActive && "bg-secondary text-primary",
@@ -302,6 +315,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, onFileOpen }) => {
                 <div 
                   key={ws.id}
                   onClick={() => setActiveWorkspace(ws.id)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleWorkspaceDrop(e, ws.id)}
+                  data-drop-workspace="true"
                   className={cn(
                     "flex items-center justify-between group px-2 py-1.5 rounded-md cursor-pointer transition-all text-xs",
                     activeWorkspaceId === ws.id 
@@ -371,7 +387,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, onFileOpen }) => {
             <div
               className="space-y-0.5 min-h-24 rounded-md"
               onDragOver={handleDragOver}
-              onDrop={handleRootDrop}
+              onDrop={handleExplorerDrop}
             >
               {activeWs && activeWs.rootFileIds.map(rid => renderFileNode(rid))}
               {!activeWs && (
