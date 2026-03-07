@@ -7,7 +7,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { Editor } from '@/components/Editor';
 import { AIAssistant } from '@/components/AIAssistant';
 import { Toaster } from '@/components/ui/toaster';
-import { PanelRightOpen, PanelRightClose, Settings } from 'lucide-react';
+import { Menu, PanelRightOpen, PanelRightClose, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   Sheet,
@@ -19,22 +19,46 @@ import {
 } from '@/components/ui/sheet';
 import { ApiKeySettings } from '@/components/ApiKeySettings';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const Dashboard: React.FC = () => {
   const [isAiOpen, setIsAiOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isFilesOpen, setIsFilesOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   return (
     <ApiKeyProvider>
       <FileProvider>
         <div className="flex h-screen bg-background overflow-hidden relative">
-          <Sidebar />
+          {!isMobile && <Sidebar />}
           <main className="flex-1 flex flex-col min-w-0 bg-background relative overflow-hidden h-full">
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-hidden">
               <Editor />
             </div>
             {/* Settings and AI Toggle Buttons */}
             <div className="absolute top-1 right-2 z-50 flex items-center gap-2">
+              {isMobile && (
+                <Sheet open={isFilesOpen} onOpenChange={setIsFilesOpen}>
+                  <SheetTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-primary transition-all duration-300"
+                      title="Open Files"
+                    >
+                      <Menu size={18} />
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="w-[90vw] max-w-xs p-0">
+                    <SheetHeader className="sr-only">
+                      <SheetTitle>Files</SheetTitle>
+                      <SheetDescription>Browse workspaces and files</SheetDescription>
+                    </SheetHeader>
+                    <Sidebar className="w-full border-r-0" onFileOpen={() => setIsFilesOpen(false)} />
+                  </SheetContent>
+                </Sheet>
+              )}
               <Sheet open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
                 <SheetTrigger asChild>
                   <Button
@@ -74,7 +98,7 @@ const Dashboard: React.FC = () => {
           <div 
             className={cn(
               "transition-all duration-300 ease-in-out border-l bg-sidebar overflow-hidden shrink-0",
-              isAiOpen ? "w-80 opacity-100" : "w-0 opacity-0 pointer-events-none"
+              isAiOpen ? (isMobile ? "w-[85vw] max-w-80 opacity-100" : "w-80 opacity-100") : "w-0 opacity-0 pointer-events-none"
             )}
           >
             <AIAssistant />

@@ -9,6 +9,7 @@ interface FileContextType {
   activeWorkspaceId: string | null;
   nodes: Record<string, FileNode>;
   activeFileId: string | null;
+  openFileIds: string[];
   
   // Actions
   createWorkspace: (name: string) => void;
@@ -22,6 +23,7 @@ interface FileContextType {
   renameNode: (id: string, newName: string) => void;
   moveNode: (id: string, newParentId: string | null) => void;
   setActiveFile: (id: string | null) => void;
+  closeFile: (id: string) => void;
 
   // Persistence/IO
   downloadWorkspace: (id: string) => void;
@@ -43,6 +45,7 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [nodes, setNodes] = useState<Record<string, FileNode>>({});
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  const [openFileIds, setOpenFileIds] = useState<string[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Load from LocalStorage
@@ -54,6 +57,8 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setWorkspaces(parsed.workspaces || []);
         setActiveWorkspaceId(parsed.activeWorkspaceId || null);
         setNodes(parsed.nodes || {});
+        setOpenFileIds(parsed.openFileIds || []);
+        setActiveFileId(parsed.activeFileId || null);
       } catch (e) {
         console.error('Failed to load storage', e);
       }
@@ -64,9 +69,9 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Save to LocalStorage
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ workspaces, activeWorkspaceId, nodes }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ workspaces, activeWorkspaceId, nodes, openFileIds, activeFileId }));
     }
-  }, [workspaces, activeWorkspaceId, nodes, isLoaded]);
+  }, [workspaces, activeWorkspaceId, nodes, openFileIds, activeFileId, isLoaded]);
 
   const createWorkspace = (name: string) => {
     const id = uuidv4();
@@ -142,11 +147,13 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!nodeToDelete) return;
 
     const newNodes = { ...nodes };
+    const deletedIds = new Set<string>();
     const deleteRecursive = (nodeId: string) => {
       const node = newNodes[nodeId];
       if (node?.children) {
         node.children.forEach(childId => deleteRecursive(childId));
       }
+      deletedIds.add(nodeId);
       delete newNodes[nodeId];
     };
     deleteRecursive(id);
@@ -165,7 +172,10 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setNodes(newNodes);
-    if (activeFileId === id) setActiveFileId(null);
+    setOpenFileIds(prev => prev.filter(fileId => !deletedIds.has(fileId)));
+    if (activeFileId && deletedIds.has(activeFileId)) {
+      setActiveFileId(null);
+    }
   };
 
   const updateNode = (id: string, updates: Partial<FileNode>) => {
@@ -334,12 +344,30 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return folder.children.map(cid => nodes[cid]).filter(Boolean);
   };
 
+  const setActiveFile = (id: string | null) => {
+    setActiveFileId(id);
+    if (id) {
+      setOpenFileIds(prev => (prev.includes(id) ? prev : [...prev, id]));
+    }
+  };
+
+  const closeFile = (id: string) => {
+    setOpenFileIds(prev => {
+      const nextOpenFileIds = prev.filter(fileId => fileId !== id);
+      if (activeFileId === id) {
+        setActiveFileId(nextOpenFileIds[nextOpenFileIds.length - 1] ?? null);
+      }
+      return nextOpenFileIds;
+    });
+  };
+
   return (
     <FileContext.Provider value={{
       workspaces,
       activeWorkspaceId,
       nodes,
       activeFileId,
+      openFileIds,
       createWorkspace,
       deleteWorkspace,
       setActiveWorkspace: setActiveWorkspaceId,
@@ -349,7 +377,8 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateNode,
       renameNode,
       moveNode,
-      setActiveFile: setActiveFileId,
+      setActiveFile,
+      closeFile,
       downloadWorkspace,
       downloadNode,
       uploadToFolder,
