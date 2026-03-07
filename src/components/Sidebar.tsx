@@ -121,10 +121,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, onFileOpen }) => {
 
   const handleDrop = (e: React.DragEvent, targetId: string | null) => {
     e.preventDefault();
+    e.stopPropagation();
     const draggedId = e.dataTransfer.getData('nodeId');
     if (draggedId && draggedId !== targetId) {
       if (targetId) {
-        let parent = nodes[targetId].parentId;
+        const targetNode = nodes[targetId];
+        if (!targetNode) return;
+
+        let parent = targetNode.parentId;
         while (parent) {
           if (parent === draggedId) return;
           parent = nodes[parent].parentId;
@@ -132,6 +136,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, onFileOpen }) => {
       }
       moveNode(draggedId, targetId);
     }
+  };
+
+  const handleRootDrop = (e: React.DragEvent) => {
+    if (e.target !== e.currentTarget) return;
+    handleDrop(e, null);
   };
 
   const validateWorkspace = () => {
@@ -359,7 +368,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, onFileOpen }) => {
               </div>
             </div>
             
-            <div className="space-y-0.5">
+            <div
+              className="space-y-0.5 min-h-24 rounded-md"
+              onDragOver={handleDragOver}
+              onDrop={handleRootDrop}
+            >
               {activeWs && activeWs.rootFileIds.map(rid => renderFileNode(rid))}
               {!activeWs && (
                 <div className="text-center py-4 text-muted-foreground text-xs italic px-4">
