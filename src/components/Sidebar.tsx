@@ -36,7 +36,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  className?: string;
+  onFileOpen?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ className, onFileOpen }) => {
   const { 
     workspaces, 
     activeWorkspaceId, 
@@ -188,6 +193,7 @@ export const Sidebar: React.FC = () => {
               toggleFolder(nodeId);
             } else {
               setActiveFile(nodeId);
+              onFileOpen?.();
             }
           }}
         >
@@ -256,7 +262,7 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <div className="w-64 border-r bg-sidebar flex flex-col h-full shrink-0">
+    <div className={cn("w-64 border-r bg-sidebar flex flex-col h-full shrink-0", className)}>
       {/* App Header */}
       <div className="p-4 border-b flex items-center gap-2">
         <Layers className="text-primary" size={20} />
