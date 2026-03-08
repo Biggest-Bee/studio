@@ -10,6 +10,9 @@ interface ApiKeyContextType {
 }
 
 const ApiKeyContext = createContext<ApiKeyContextType | undefined>(undefined);
+const API_KEY_STORAGE_KEY = 'gemini_api_key';
+
+const normalizeApiKey = (value: string) => value.trim();
 
 export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [apiKey, setApiKeyState] = useState<string | null>(null);
@@ -17,10 +20,12 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('gemini_api_key');
-      if (saved) {
-        setApiKeyState(saved);
+      const sessionKey = sessionStorage.getItem(API_KEY_STORAGE_KEY);
+      if (sessionKey) {
+        setApiKeyState(normalizeApiKey(sessionKey));
       }
+      // Defense-in-depth: remove any legacy localStorage copy without reading it into memory.
+      localStorage.removeItem(API_KEY_STORAGE_KEY);
     } catch (e) {
       console.error('Failed to load API key from storage:', e);
     }
@@ -28,10 +33,11 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const setApiKey = (key: string) => {
-    const trimmed = key.trim();
+    const trimmed = normalizeApiKey(key);
     setApiKeyState(trimmed);
     try {
-      localStorage.setItem('gemini_api_key', trimmed);
+      sessionStorage.setItem(API_KEY_STORAGE_KEY, trimmed);
+      localStorage.removeItem(API_KEY_STORAGE_KEY);
     } catch (e) {
       console.error('Failed to save API key to storage:', e);
     }
@@ -40,7 +46,8 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const clearApiKey = () => {
     setApiKeyState(null);
     try {
-      localStorage.removeItem('gemini_api_key');
+      sessionStorage.removeItem(API_KEY_STORAGE_KEY);
+      localStorage.removeItem(API_KEY_STORAGE_KEY);
     } catch (e) {
       console.error('Failed to clear API key from storage:', e);
     }

@@ -56,6 +56,7 @@ export const Editor: React.FC = () => {
             <Select 
               value={file.language} 
               onValueChange={handleLanguageChange}
+              disabled={!!file.isBinary}
             >
               <SelectTrigger className="h-7 text-xs w-28 sm:w-32 bg-background border-none ring-1 ring-border">
                 <SelectValue placeholder="Language" />
@@ -123,10 +124,11 @@ export const Editor: React.FC = () => {
         <div className="flex-1 h-full relative">
           <Textarea 
             className="w-full h-full p-4 font-code text-sm bg-transparent border-none focus-visible:ring-0 resize-none leading-relaxed"
-            value={file.content}
-            onChange={(e) => updateNode(file.id, { content: e.target.value })}
-            placeholder="// Start writing your code here..."
+            value={file.isBinary ? '[Binary file preview unavailable]' : (file.content || '')}
+            onChange={(e) => !file.isBinary && updateNode(file.id, { content: e.target.value })}
+            placeholder={file.isBinary ? 'Binary files cannot be edited in the text editor.' : '// Start writing your code here...'}
             spellCheck={false}
+            disabled={!!file.isBinary}
           />
         </div>
       </div>
