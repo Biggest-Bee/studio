@@ -5,6 +5,9 @@ export interface FileNode {
   name: string;
   type: FileType;
   content?: string;
+  binaryContent?: string; // base64-encoded binary payload
+  isBinary?: boolean;
+  mimeType?: string;
   language?: string;
   parentId: string | null;
   children?: string[]; // IDs of children

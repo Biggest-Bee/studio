@@ -9,8 +9,7 @@ function getApiKey(): string {
   const envKey = process.env.GEMINI_API_KEY;
   if (envKey) return envKey;
   
-  // Return a placeholder - actual key comes from UI or environment
-  return 'placeholder_configure_via_settings';
+  return '';
 }
 
 export const ai = genkit({

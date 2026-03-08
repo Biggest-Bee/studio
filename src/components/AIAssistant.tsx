@@ -92,6 +92,15 @@ export const AIAssistant: React.FC = () => {
     );
   }
 
+
+  const normalizeSafePath = (path: string) => {
+    const cleaned = path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    if (!cleaned) return '';
+    const segments = cleaned.split('/').filter(Boolean);
+    if (segments.some(seg => seg === '.' || seg === '..' || /[\x00-\x1f\x7f]/.test(seg))) return null;
+    return segments.join('/');
+  };
+
   const findNodeByPath = (path: string) => {
     if (!path || path === '/' || path === '') return null;
     const normalizedPath = path.replace(/^\/+/, '').replace(/\/+$/, '');
@@ -145,7 +154,9 @@ export const AIAssistant: React.FC = () => {
       if (result.operations && result.operations.length > 0) {
         for (const op of result.operations) {
           if (!op.path || typeof op.path !== 'string') continue;
-          const pathParts = op.path.split('/').filter(Boolean);
+          const safePath = normalizeSafePath(op.path);
+          if (safePath === null) continue;
+          const pathParts = safePath.split('/').filter(Boolean);
           if (pathParts.length === 0) continue;
           const name = pathParts.pop() || '';
           const parentPath = pathParts.length > 0 ? pathParts.join('/') : '';
@@ -154,21 +165,24 @@ export const AIAssistant: React.FC = () => {
 
           if (op.type === 'createFile') {
             const id = createNode(parentId, name, 'file');
-            if (op.content) updateNode(id, { content: op.content });
+            if (id && op.content) updateNode(id, { content: op.content });
           } else if (op.type === 'createFolder') {
             createNode(parentId, name, 'folder');
           } else if (op.type === 'updateFile') {
-            const node = findNodeByPath(op.path);
+            const node = safePath ? findNodeByPath(safePath) : null;
             if (node) updateNode(node.id, { content: op.content });
           } else if (op.type === 'deleteFile') {
-            const node = findNodeByPath(op.path);
+            const node = safePath ? findNodeByPath(safePath) : null;
             if (node) deleteNode(node.id);
           } else if (op.type === 'renameFile') {
-            const node = findNodeByPath(op.path);
+            const node = safePath ? findNodeByPath(safePath) : null;
             if (node && op.newName) renameNode(node.id, op.newName);
           } else if (op.type === 'moveNode') {
-            const node = findNodeByPath(op.path);
-            const destNode = findNodeByPath(op.destinationPath || '');
+            const destinationPath = op.destinationPath || '/';
+            const safeDestinationPath = destinationPath === '/' ? '/' : normalizeSafePath(destinationPath);
+            if (safeDestinationPath === null) continue;
+            const node = safePath ? findNodeByPath(safePath) : null;
+            const destNode = safeDestinationPath === '/' ? null : findNodeByPath(safeDestinationPath);
             if (node) moveNode(node.id, destNode?.id || null);
           }
         }
@@ -176,7 +190,7 @@ export const AIAssistant: React.FC = () => {
       } else if (result.generatedCode) {
         // Fallback for simple code generation
         const id = createNode(null, `ai_generated_${Date.now().toString().slice(-4)}.js`, 'file');
-        updateNode(id, { content: result.generatedCode });
+        if (id) updateNode(id, { content: result.generatedCode });
         toast({ title: "Code Generated", description: result.explanation });
       }
 

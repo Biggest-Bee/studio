@@ -16,6 +16,7 @@ import {
   Download,
   Upload,
   Edit2,
+  ArrowUpToLine,
   MoreHorizontal,
   GripVertical,
   LayoutGrid,
@@ -265,6 +266,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, onFileOpen }) => {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => downloadNode(node.id)}>
                   <Download size={14} className="mr-2" /> Download
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => moveNode(node.id, null)}>
+                  <ArrowUpToLine size={14} className="mr-2" /> Move to root
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => deleteNode(node.id)} className="text-destructive">
                   <Trash size={14} className="mr-2" /> Delete

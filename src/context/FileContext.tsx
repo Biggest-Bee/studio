@@ -40,6 +40,19 @@ const FileContext = createContext<FileContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'syntaxforge_data';
 
+
+const sanitizeNodeName = (name: string) => {
+  const cleaned = name.replace(/[\/\x00-\x1f\x7f]/g, '').trim();
+  if (!cleaned || cleaned === '.' || cleaned === '..') return null;
+  return cleaned.slice(0, 100);
+};
+
+const sanitizeWorkspaceName = (name: string) => {
+  const cleaned = name.replace(/[\x00-\x1f\x7f]/g, '').trim();
+  return cleaned.slice(0, 100);
+};
+
+
 export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
@@ -74,10 +87,12 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [workspaces, activeWorkspaceId, nodes, openFileIds, activeFileId, isLoaded]);
 
   const createWorkspace = (name: string) => {
+    const safeName = sanitizeWorkspaceName(name);
+    if (!safeName) return;
     const id = uuidv4();
     const newWorkspace: Workspace = {
       id,
-      name,
+      name: safeName,
       rootFileIds: [],
       createdAt: Date.now()
     };
@@ -107,14 +122,18 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const renameWorkspace = (id: string, name: string) => {
-    setWorkspaces(prev => prev.map(w => w.id === id ? { ...w, name } : w));
+    const safeName = sanitizeWorkspaceName(name);
+    if (!safeName) return;
+    setWorkspaces(prev => prev.map(w => w.id === id ? { ...w, name: safeName } : w));
   };
 
   const createNode = (parentId: string | null, name: string, type: FileType, language = 'javascript') => {
+    const safeName = sanitizeNodeName(name);
+    if (!safeName) return '';
     const id = uuidv4();
     const newNode: FileNode = {
       id,
-      name,
+      name: safeName,
       type,
       parentId,
       language: type === 'file' ? language : undefined,
@@ -189,7 +208,9 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const renameNode = (id: string, newName: string) => {
-    updateNode(id, { name: newName });
+    const safeName = sanitizeNodeName(newName);
+    if (!safeName) return;
+    updateNode(id, { name: safeName });
   };
 
   const findWorkspaceIdForNode = (nodeId: string, currentNodes: Record<string, FileNode>, currentWorkspaces: Workspace[]) => {
@@ -206,15 +227,26 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const node = nodes[id];
     if (!node) return;
 
+    // Cross-workspace moves always land at that workspace root.
+    const effectiveParentId = targetWorkspaceId ? null : newParentId;
+
+    if (effectiveParentId) {
+      let parent: string | null = effectiveParentId;
+      while (parent) {
+        if (parent === id) return;
+        parent = nodes[parent]?.parentId || null;
+      }
+    }
+
     const newNodes: Record<string, FileNode> = { ...nodes };
     const newWorkspaces = workspaces.map(w => ({ ...w, rootFileIds: [...w.rootFileIds] }));
     const sourceWorkspaceId = findWorkspaceIdForNode(id, nodes, workspaces);
-    const destinationWorkspaceId = newParentId
-      ? findWorkspaceIdForNode(newParentId, newNodes, workspaces)
+    const destinationWorkspaceId = effectiveParentId
+      ? findWorkspaceIdForNode(effectiveParentId, newNodes, workspaces)
       : targetWorkspaceId || sourceWorkspaceId || activeWorkspaceId;
     if (!destinationWorkspaceId) return;
-    if (node.parentId === newParentId && sourceWorkspaceId === destinationWorkspaceId) return;
-    
+    if (node.parentId === effectiveParentId && sourceWorkspaceId === destinationWorkspaceId) return;
+
     // Remove from old parent
     if (node.parentId && newNodes[node.parentId]) {
       const oldParent = newNodes[node.parentId];
@@ -229,15 +261,15 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Add to new parent
-    if (newParentId && newNodes[newParentId]) {
-      const newParent = newNodes[newParentId];
-      newNodes[newParentId] = {
+    // Add to new parent/root
+    if (effectiveParentId && newNodes[effectiveParentId]) {
+      const newParent = newNodes[effectiveParentId];
+      newNodes[effectiveParentId] = {
         ...newParent,
         children: [...(newParent.children || []), id]
       };
-      newNodes[id] = { ...newNodes[id], parentId: newParentId };
-    } else if (!newParentId) {
+      newNodes[id] = { ...newNodes[id], parentId: effectiveParentId };
+    } else {
       const destinationWorkspace = newWorkspaces.find(w => w.id === destinationWorkspaceId);
       if (!destinationWorkspace) return;
       if (!destinationWorkspace.rootFileIds.includes(id)) {
@@ -250,8 +282,26 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setNodes(newNodes);
   };
 
-  const downloadFileContent = (name: string, content: string) => {
-    const blob = new Blob([content], { type: 'text/plain' });
+  const sanitizeTarName = (value: string) => value.replace(/\\/g, '/').replace(/^\/+/, '').slice(0, 100);
+
+  const base64ToUint8Array = (base64: string) => {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  };
+
+  const uint8ArrayToBase64 = (bytes: Uint8Array) => {
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  };
+
+  const triggerDownload = (name: string, blob: Blob) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -260,55 +310,136 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     URL.revokeObjectURL(url);
   };
 
+  const createTarBlob = (entries: Array<{ path: string; data?: Uint8Array; isDirectory?: boolean }>) => {
+    const chunks: BlobPart[] = [];
+    const encoder = new TextEncoder();
+
+    const writeString = (target: Uint8Array, offset: number, length: number, value: string) => {
+      const bytes = encoder.encode(value);
+      target.set(bytes.slice(0, length), offset);
+    };
+
+    const writeOctal = (target: Uint8Array, offset: number, length: number, value: number) => {
+      const oct = value.toString(8).padStart(length - 1, '0');
+      writeString(target, offset, length - 1, oct);
+      target[offset + length - 1] = 0;
+    };
+
+    for (const entry of entries) {
+      const header = new Uint8Array(512);
+      const isDirectory = !!entry.isDirectory;
+      const safePath = sanitizeTarName(isDirectory ? `${entry.path.replace(/\/+$/, '')}/` : entry.path);
+      const data = entry.data || new Uint8Array(0);
+
+      writeString(header, 0, 100, safePath);
+      writeOctal(header, 100, 8, isDirectory ? 0o755 : 0o644);
+      writeOctal(header, 108, 8, 0);
+      writeOctal(header, 116, 8, 0);
+      writeOctal(header, 124, 12, data.length);
+      writeOctal(header, 136, 12, Math.floor(Date.now() / 1000));
+      for (let i = 148; i < 156; i++) header[i] = 32;
+      header[156] = isDirectory ? '5'.charCodeAt(0) : '0'.charCodeAt(0);
+      writeString(header, 257, 6, 'ustar');
+      writeString(header, 263, 2, '00');
+
+      let checksum = 0;
+      for (const value of header) checksum += value;
+      const checksumOctal = checksum.toString(8).padStart(6, '0');
+      writeString(header, 148, 6, checksumOctal);
+      header[154] = 0;
+      header[155] = 32;
+
+      chunks.push(header.buffer.slice(header.byteOffset, header.byteOffset + header.byteLength) as ArrayBuffer);
+      if (!isDirectory && data.length > 0) {
+        chunks.push(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer);
+        const padding = (512 - (data.length % 512)) % 512;
+        if (padding > 0) chunks.push(new Uint8Array(padding).buffer);
+      }
+    }
+
+    chunks.push(new Uint8Array(1024).buffer);
+    return new Blob(chunks, { type: 'application/x-tar' });
+  };
+
+  const collectTarEntries = (nodeId: string, basePath: string, entries: Array<{ path: string; data?: Uint8Array; isDirectory?: boolean }>) => {
+    const node = nodes[nodeId];
+    if (!node) return;
+
+    const currentPath = basePath ? `${basePath}/${node.name}` : node.name;
+    if (node.type === 'folder') {
+      entries.push({ path: currentPath, isDirectory: true });
+      (node.children || []).forEach(childId => collectTarEntries(childId, currentPath, entries));
+      return;
+    }
+
+    const fileBytes = node.isBinary && node.binaryContent
+      ? base64ToUint8Array(node.binaryContent)
+      : new TextEncoder().encode(node.content || '');
+
+    entries.push({ path: currentPath, data: fileBytes, isDirectory: false });
+  };
+
   const downloadNode = (id: string) => {
     const node = nodes[id];
     if (!node) return;
+
     if (node.type === 'file') {
-      downloadFileContent(node.name, node.content || '');
-    } else {
-      // For folders, we download a recursive JSON representation
-      const exportRecursive = (nid: string): any => {
-        const n = nodes[nid];
-        return {
-          ...n,
-          children: n.children ? n.children.map(cid => exportRecursive(cid)) : undefined
-        };
-      };
-      const data = exportRecursive(id);
-      downloadFileContent(`${node.name}.json`, JSON.stringify(data, null, 2));
+      const blob = node.isBinary && node.binaryContent
+        ? new Blob([base64ToUint8Array(node.binaryContent)], { type: node.mimeType || 'application/octet-stream' })
+        : new Blob([node.content || ''], { type: node.mimeType || 'text/plain' });
+      triggerDownload(node.name, blob);
+      return;
     }
+
+    const entries: Array<{ path: string; data?: Uint8Array; isDirectory?: boolean }> = [];
+    collectTarEntries(id, '', entries);
+    triggerDownload(`${node.name}.tar`, createTarBlob(entries));
   };
 
   const downloadWorkspace = (id: string) => {
     const ws = workspaces.find(w => w.id === id);
     if (!ws) return;
-    const exportData = {
-      workspace: ws,
-      nodes: ws.rootFileIds.map(rid => {
-        const exportRecursive = (nid: string): any => {
-          const n = nodes[nid];
-          return {
-            ...n,
-            children: n.children ? n.children.map(cid => exportRecursive(cid)) : undefined
-          };
-        };
-        return exportRecursive(rid);
-      })
-    };
-    downloadFileContent(`${ws.name}_workspace.json`, JSON.stringify(exportData, null, 2));
+
+    const entries: Array<{ path: string; data?: Uint8Array; isDirectory?: boolean }> = [];
+    ws.rootFileIds.forEach(rootId => collectTarEntries(rootId, ws.name, entries));
+    triggerDownload(`${ws.name}.tar`, createTarBlob(entries));
   };
+
+  const textExtensions = new Set([
+    'js', 'jsx', 'ts', 'tsx', 'json', 'css', 'scss', 'html', 'md', 'txt', 'xml', 'yaml', 'yml',
+    'py', 'java', 'go', 'rs', 'c', 'cpp', 'h', 'hpp', 'php', 'rb', 'swift', 'kt', 'sql', 'sh', 'toml'
+  ]);
 
   const uploadToFolder = async (parentId: string | null, files: FileList) => {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        const extension = file.name.split('.').pop() || 'javascript';
-        const nodeId = createNode(parentId, file.name, 'file', extension);
-        updateNode(nodeId, { content });
-      };
-      reader.readAsText(file);
+      const extension = (file.name.split('.').pop() || 'txt').toLowerCase();
+      const nodeId = createNode(parentId, file.name, 'file', extension);
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+
+      const likelyText = file.type.startsWith('text/') || textExtensions.has(extension) || file.type.includes('json');
+      if (likelyText) {
+        try {
+          const textContent = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+          updateNode(nodeId, {
+            content: textContent,
+            isBinary: false,
+            binaryContent: undefined,
+            mimeType: file.type || 'text/plain'
+          });
+          continue;
+        } catch {
+          // Fallback to binary storage for non-UTF8 content.
+        }
+      }
+
+      updateNode(nodeId, {
+        content: '',
+        isBinary: true,
+        binaryContent: uint8ArrayToBase64(bytes),
+        mimeType: file.type || 'application/octet-stream'
+      });
     }
   };
 

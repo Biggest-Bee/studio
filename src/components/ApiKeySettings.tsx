@@ -47,7 +47,8 @@ export const ApiKeySettings: React.FC = () => {
           Enter your API key from{' '}
           <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
             Google AI Studio
-          </a>
+          </a>{' '}
+          (stored only for this browser session).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
