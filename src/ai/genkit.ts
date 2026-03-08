@@ -1,3 +1,4 @@
+
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 
@@ -7,9 +8,10 @@ import {googleAI} from '@genkit-ai/google-genai';
  */
 function getApiKey(): string {
   const envKey = process.env.GEMINI_API_KEY;
-  if (envKey) return envKey;
-  
-  return '';
+  if (!envKey) {
+    throw new Error('GEMINI_API_KEY environment variable is not configured.');
+  }
+  return envKey;
 }
 
 export const ai = genkit({
@@ -18,5 +20,5 @@ export const ai = genkit({
       apiKey: getApiKey(),
     }),
   ],
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-1.5-flash',
 });

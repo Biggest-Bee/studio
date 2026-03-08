@@ -34,6 +34,10 @@ export const ApiKeyProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const setApiKey = (key: string) => {
     const trimmed = normalizeApiKey(key);
+    if (trimmed.length < 20) {
+      console.error('API key appears to be invalid');
+      return;
+    }
     setApiKeyState(trimmed);
     try {
       sessionStorage.setItem(API_KEY_STORAGE_KEY, trimmed);

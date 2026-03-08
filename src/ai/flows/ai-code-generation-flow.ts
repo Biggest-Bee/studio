@@ -11,13 +11,27 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
+function validateFilePath(path: string): boolean {
+  if (!path || typeof path !== 'string') return false;
+  if (path.includes('..') || path.includes('~') || path.includes('\0')) {
+    return false;
+  }
+  return true;
+}
+
 // Define the operations the AI can suggest
 const FileOperationSchema = z.object({
   type: z.enum(['createFile', 'updateFile', 'deleteFile', 'renameFile', 'createFolder', 'moveNode']),
-  path: z.string().describe('The path of the file or folder (e.g., "src/index.ts")'),
+  path: z.string().refine(
+    (path) => validateFilePath(path),
+    { message: 'Invalid file path - must not contain "..", "~", or null bytes' }
+  ).describe('The path of the file or folder (e.g., "src/index.ts")'),
   content: z.string().optional().describe('Content for creation or update'),
   newName: z.string().optional().describe('New name for renaming'),
-  destinationPath: z.string().optional().describe('Target folder path for move operations (use "/" for root)'),
+  destinationPath: z.string().optional().refine(
+    (path) => path ? validateFilePath(path) : true, // Only validate if the path exists
+    { message: 'Invalid destination file path - must not contain "..", "~", or null bytes' }
+  ).describe('Target folder path for move operations (use "/" for root)'),
 });
 
 // 1. Define Input Schema
@@ -31,10 +45,9 @@ const AiCodeGenerationInputSchema = z.object({
     content: z.string().optional(),
     children: z.array(z.string()).optional().describe('Paths of children if this is a folder')
   })).optional().describe('Full hierarchical context of the existing files in the workspace.'),
-  apiKey: z.string().optional().describe('The Gemini API key for authentication.'),
+  apiKey: z.string().optional(),
 });
 
-const AiCodeGenerationPromptInputSchema = AiCodeGenerationInputSchema.omit({ apiKey: true });
 export type AiCodeGenerationInput = z.infer<typeof AiCodeGenerationInputSchema>;
 
 // 2. Define Output Schema
@@ -48,7 +61,7 @@ export type AiCodeGenerationOutput = z.infer<typeof AiCodeGenerationOutputSchema
 // 3. Define the Genkit Prompt
 const codeGenerationPrompt = ai.definePrompt({
   name: 'codeGenerationPrompt',
-  input: { schema: AiCodeGenerationPromptInputSchema },
+  input: { schema: AiCodeGenerationInputSchema },
   output: { schema: AiCodeGenerationOutputSchema },
   prompt: `You are an expert software developer and architect.
 Your task is to fulfill the user's request. You can generate modular code and perform workspace operations.
@@ -92,78 +105,19 @@ const aiCodeGenerationFlow = ai.defineFlow(
     outputSchema: AiCodeGenerationOutputSchema,
   },
   async (input) => {
-    const { output } = await codeGenerationPrompt(input);
-    if (!output) {
-      throw new Error('Failed to generate response.');
+    const response = await codeGenerationPrompt(input, { config: { apiKey: input.apiKey } });
+    if (!response || !response.output) {
+        throw new Error('Failed to generate a valid response from the AI.');
     }
-    return output;
+    return response.output;
   }
 );
 
 // 5. Define the exported wrapper function
 export async function generateCode(input: AiCodeGenerationInput): Promise<AiCodeGenerationOutput> {
-  // Validate that an API key is provided
-  if (!input.apiKey) {
-    throw new Error('No valid API key provided. Please configure your Gemini API key in settings.');
-  }
-  
-  // Create a new Genkit instance with the provided API key
-  const { genkit } = await import('genkit');
-  const { googleAI } = await import('@genkit-ai/google-genai');
-  
-  const aiWithKey = genkit({
-    plugins: [
-      googleAI({
-        apiKey: input.apiKey,
-      }),
-    ],
-    model: 'googleai/gemini-2.5-flash',
-  });
-  
-  // Define the prompt with the key-specific instance
-  const codeGenPrompt = aiWithKey.definePrompt({
-    name: 'codeGenerationPrompt',
-    input: { schema: AiCodeGenerationPromptInputSchema },
-    output: { schema: AiCodeGenerationOutputSchema },
-    prompt: `You are an expert software developer and architect.
-Your task is to fulfill the user's request. You can generate modular code and perform workspace operations.
-
-Capabilities:
-1. Create/Update/Delete files and folders.
-2. Rename files and folders.
-3. Move files and folders into other folders (including sub-sub folders) or out to the root.
-
-If the user asks to build something complex, break it down into multiple file operations.
-If the user asks to move something, use the 'moveNode' operation and specify the 'destinationPath'.
-Paths should be relative to the workspace root (e.g., 'src/components/Button.tsx').
-
-Workspace Context (Hierarchical):
-{{#each workspaceContext}}
-- {{{type}}}: {{{path}}}
-{{#if content}}
-  Content:
-  \`\`\`
-  {{{content}}}
-  \`\`\`
-{{/if}}
-{{#if children}}
-  Contains: {{#each children}}{{{this}}}, {{/each}}
-{{/if}}
-{{/each}}
-
-User Prompt: {{{userPrompt}}}
-Programming Language: {{{programmingLanguage}}}
-Complexity Level: {{{complexityLevel}}}
-
-IMPORTANT: Return a list of 'operations' if you need to create, update, rename, move, or delete files/folders.
-`,
-  });
-  
-  // Call the prompt
-  const { apiKey: _apiKey, ...promptInput } = input;
-  const { output } = await codeGenPrompt(promptInput);
-  if (!output) {
-    throw new Error('Failed to generate response.');
-  }
-  return output;
+    const output = await aiCodeGenerationFlow(input);
+    if (!output) {
+      throw new Error('Failed to generate response.');
+    }
+    return output;
 }

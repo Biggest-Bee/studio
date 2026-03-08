@@ -19,10 +19,9 @@ const FileContentSchema = z.object({
 // Define the input schema for the AI code explanation and debugging flow
 const AiCodeExplanationAndDebuggingInputSchema = z.object({
   filesToAnalyze: z.array(FileContentSchema).describe('An array of files to analyze, including their names and content. This can represent files from a single folder or selected individual files.'),
-  apiKey: z.string().optional().describe('The Gemini API key for authentication.'),
+  apiKey: z.string().optional(),
 });
 
-const AiCodeExplanationAndDebuggingPromptInputSchema = AiCodeExplanationAndDebuggingInputSchema.omit({ apiKey: true });
 export type AiCodeExplanationAndDebuggingInput = z.infer<typeof AiCodeExplanationAndDebuggingInputSchema>;
 
 // Define the output schema for the AI code explanation and debugging flow
@@ -38,28 +37,21 @@ export type AiCodeExplanationAndDebuggingOutput = z.infer<typeof AiCodeExplanati
 export async function aiCodeExplanationAndDebugging(
   input: AiCodeExplanationAndDebuggingInput
 ): Promise<AiCodeExplanationAndDebuggingOutput> {
-  // Validate that an API key is provided
-  if (!input.apiKey) {
-    throw new Error('No valid API key provided. Please configure your Gemini API key in settings.');
-  }
-  
-  // Create a new Genkit instance with the provided API key
-  const { genkit } = await import('genkit');
-  const { googleAI } = await import('@genkit-ai/google-genai');
-  
-  const aiWithKey = genkit({
-    plugins: [
-      googleAI({
-        apiKey: input.apiKey,
-      }),
-    ],
-    model: 'googleai/gemini-2.5-flash',
-  });
-  
-  // Define the prompt with the key-specific instance
-  const analysisPrompt = aiWithKey.definePrompt({
+    if (input.filesToAnalyze.length > 50) {
+        throw new Error('Too many files provided. Maximum 50 files allowed.');
+    }
+
+    const totalSize = input.filesToAnalyze.reduce(
+        (sum, f) => sum + (f.fileContent?.length || 0),
+        0
+    );
+    if (totalSize > 500000) {
+        throw new Error('Files are too large. Total size must be under 500KB.');
+    }
+
+  const analysisPrompt = ai.definePrompt({
     name: 'aiCodeExplanationAndDebuggingPrompt',
-    input: { schema: AiCodeExplanationAndDebuggingPromptInputSchema },
+    input: { schema: AiCodeExplanationAndDebuggingInputSchema },
     output: { schema: AiCodeExplanationAndDebuggingOutputSchema },
     prompt: `You are an expert software engineer and debugger. Your task is to provide a comprehensive analysis of the given code, which may span multiple files. Follow these steps:
 
@@ -83,10 +75,10 @@ Here are the files for your analysis:
 Please provide your analysis in the JSON format specified by the output schema.
 `,
   });
-  
-  // Call the prompt
-  const { apiKey: _apiKey, ...promptInput } = input;
-  const { output } = await analysisPrompt(promptInput);
+
+  const response = await analysisPrompt(input, { config: { apiKey: input.apiKey } });
+  const output = response.output;
+
   if (!output) {
     throw new Error('AI failed to generate a valid output for code explanation and debugging.');
   }
