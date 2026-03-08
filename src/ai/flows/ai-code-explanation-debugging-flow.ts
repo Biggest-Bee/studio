@@ -1,69 +1,44 @@
 'use server';
 /**
- * @fileOverview A Genkit flow for explaining and debugging code.
- *
- * - aiCodeExplanationAndDebugging - A function that handles the code explanation and debugging process.
- * - AiCodeExplanationAndDebuggingInput - The input type for the aiCodeExplanationAndDebugging function.
- * - AiCodeExplanationAndDebuggingOutput - The return type for the aiCodeExplanationAndDebugging function.
+ * @fileOverview A Genkit flow for explaining and debugging code, using the core `ai.generate()`
+ * function to support a BYOK (Bring Your Own Key) model.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
+import { GENKIT_MODEL } from '@/lib/constants';
 
-// Define the schema for a single file's content
+// 1. Define Schemas
 const FileContentSchema = z.object({
-  fileName: z.string().describe('The name of the file (e.g., "src/index.ts").'),
+  fileName: z.string().describe('The name of the file.'),
   fileContent: z.string().describe('The full content of the file.'),
 });
 
-// Define the input schema for the AI code explanation and debugging flow
 const AiCodeExplanationAndDebuggingInputSchema = z.object({
-  filesToAnalyze: z.array(FileContentSchema).describe('An array of files to analyze, including their names and content. This can represent files from a single folder or selected individual files.'),
-  apiKey: z.string().optional(),
+  filesToAnalyze: z.array(FileContentSchema).describe('An array of files to be analyzed.'),
+  apiKey: z.string().optional(), // User-provided API key
 });
-
 export type AiCodeExplanationAndDebuggingInput = z.infer<typeof AiCodeExplanationAndDebuggingInputSchema>;
 
-// Define the output schema for the AI code explanation and debugging flow
 const AiCodeExplanationAndDebuggingOutputSchema = z.object({
-  explanation: z.string().describe('A comprehensive explanation of the selected code or folder content, detailing its functionality and purpose.'),
-  potentialIssues: z.array(z.string()).describe('A list of potential issues, bugs, inefficiencies, or areas for improvement identified in the code. Each item should be a concise description of an issue.'),
-  suggestions: z.array(z.string()).describe('Specific and actionable suggestions for how to resolve identified issues, improve code quality, optimize performance, or refactor for better design. Each item should be a concise suggestion.'),
-  summary: z.string().describe('A brief, high-level summary of the overall analysis, highlighting the main points of the explanation and any critical findings.'),
+  explanation: z.string().describe('A comprehensive explanation of the code.'),
+  potentialIssues: z.array(z.string()).describe('A list of potential issues or bugs.'),
+  suggestions: z.array(z.string()).describe('Actionable suggestions for improvement.'),
+  summary: z.string().describe('A high-level summary of the analysis.'),
 });
 export type AiCodeExplanationAndDebuggingOutput = z.infer<typeof AiCodeExplanationAndDebuggingOutputSchema>;
 
-// Wrapper function to call the Genkit flow
-export async function aiCodeExplanationAndDebugging(
-  input: AiCodeExplanationAndDebuggingInput
-): Promise<AiCodeExplanationAndDebuggingOutput> {
-    if (input.filesToAnalyze.length > 50) {
-        throw new Error('Too many files provided. Maximum 50 files allowed.');
-    }
+// 2. Define the Prompt Template
+const PROMPT_TEMPLATE = `You are an expert software engineer and debugger.
+Your task is to provide a comprehensive analysis of the given code, which may span multiple files.
 
-    const totalSize = input.filesToAnalyze.reduce(
-        (sum, f) => sum + (f.fileContent?.length || 0),
-        0
-    );
-    if (totalSize > 500000) {
-        throw new Error('Files are too large. Total size must be under 500KB.');
-    }
-
-  const analysisPrompt = ai.definePrompt({
-    name: 'aiCodeExplanationAndDebuggingPrompt',
-    input: { schema: AiCodeExplanationAndDebuggingInputSchema },
-    output: { schema: AiCodeExplanationAndDebuggingOutputSchema },
-    prompt: `You are an expert software engineer and debugger. Your task is to provide a comprehensive analysis of the given code, which may span multiple files. Follow these steps:
-
-1.  **Explanation**: Detail the functionality, purpose, and overall architecture of the code. Explain how different files (if any) interact.
-2.  **Potential Issues**: Identify any bugs, inefficiencies, security vulnerabilities, poor coding practices, design flaws, or areas that could lead to unexpected behavior.
-3.  **Suggestions**: Offer specific, actionable recommendations for resolving identified issues, improving code quality, optimizing performance, refactoring, or enhancing maintainability.
-4.  **Summary**: Provide a brief, high-level overview of your entire analysis.
-
-Consider the entire context of the provided files as part of a single project.
+Follow these steps:
+1.  **Explanation**: Detail the functionality, purpose, and architecture.
+2.  **Potential Issues**: Identify bugs, vulnerabilities, and poor coding practices.
+3.  **Suggestions**: Offer specific, actionable recommendations for improvement.
+4.  **Summary**: Provide a brief, high-level overview of your analysis.
 
 Here are the files for your analysis:
-
 {{#each filesToAnalyze}}
 ### File: {{{fileName}}}
 \`\`\`
@@ -72,15 +47,40 @@ Here are the files for your analysis:
 ---
 {{/each}}
 
-Please provide your analysis in the JSON format specified by the output schema.
-`,
+Please provide your analysis in the specified JSON output format.`;
+
+// 3. Define the exported wrapper function
+export async function aiCodeExplanationAndDebugging(
+  input: AiCodeExplanationAndDebuggingInput
+): Promise<AiCodeExplanationAndDebuggingOutput> {
+  // Perform input validation
+  if (input.filesToAnalyze.length > 50) {
+    throw new Error('Too many files. A maximum of 50 files is allowed.');
+  }
+  const totalSize = input.filesToAnalyze.reduce((sum, f) => sum + (f.fileContent?.length || 0), 0);
+  if (totalSize > 500000) {
+    throw new Error('Files are too large. Total size must be under 500KB.');
+  }
+
+  // Separate the API key from the rest of the prompt input
+  const { apiKey, ...promptData } = input;
+
+  // Use the core `generate` function to allow for per-request API key
+  const response = await ai.generate({
+    model: GENKIT_MODEL,
+    prompt: PROMPT_TEMPLATE,
+    input: promptData, // Pass template variables here
+    output: {
+      schema: AiCodeExplanationAndDebuggingOutputSchema,
+    },
+    config: {
+      apiKey: apiKey, // Pass the user's key in the config
+    },
   });
 
-  const response = await analysisPrompt(input, { config: { apiKey: input.apiKey } });
   const output = response.output;
-
   if (!output) {
-    throw new Error('AI failed to generate a valid output for code explanation and debugging.');
+    throw new Error('AI failed to generate a valid analysis.');
   }
   return output;
 }

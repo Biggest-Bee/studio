@@ -1,0 +1,1 @@
+export const GENKIT_MODEL = 'googleai/gemini-1.5-flash';
